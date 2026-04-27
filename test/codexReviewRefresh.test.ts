@@ -92,6 +92,46 @@ test("refreshCodexReviewState retries review trigger when comment creation fails
   assert.equal(retry.lastReviewRequestHeadSha, "sha-1");
 });
 
+test("refreshCodexReviewState does not request review after watch completes during polling", async () => {
+  const watches = await service();
+  let releasePullRequest!: () => void;
+  let markStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  const comments: string[] = [];
+  const github: CodexReviewSignalClient = {
+    async getPullRequest() {
+      markStarted();
+      await new Promise<void>((resolve) => {
+        releasePullRequest = resolve;
+      });
+      return { headSha: "sha-1" };
+    },
+    async listIssueReactions() {
+      return [];
+    },
+    async listPullRequestReviews() {
+      return [];
+    },
+    async createIssueComment(_repo: string, _prNumber: number, body: string) {
+      comments.push(body);
+      return {};
+    },
+  };
+  await watches.registerWatch({ repo: "owner/repo", prNumber: 7 }, new Date("2026-04-27T12:00:00.000Z"));
+
+  const refresh = watches.refreshCodexReviewState("owner/repo", github, 7, new Date("2026-04-27T12:01:00.000Z"));
+  await started;
+  await watches.setStatus("owner/repo", "completed", 7, new Date("2026-04-27T12:01:30.000Z"));
+  releasePullRequest();
+  const watch = await refresh;
+
+  assert.deepEqual(comments, []);
+  assert.equal(watch.status, "completed");
+  assert.equal(watch.lastReviewRequestHeadSha, undefined);
+});
+
 test("refreshCodexReviewState treats Codex eyes reaction as seen", async () => {
   const watches = await service();
   const github = new FakeCodexClient();

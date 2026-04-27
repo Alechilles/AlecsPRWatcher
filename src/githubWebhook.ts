@@ -96,7 +96,7 @@ export function toIngestEvent(
       state: payload.review?.state,
       commitSha: payload.review?.commit_id,
       rawEventName: eventName,
-      createdAt: payload.review?.submitted_at,
+      createdAt: payload.action === "submitted" ? payload.review?.submitted_at : payload.review?.updated_at,
     };
   }
 

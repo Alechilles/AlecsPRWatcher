@@ -222,6 +222,9 @@ export class WatchService {
       if (!watch) {
         throw new Error(`No watch registered for ${id}`);
       }
+      if (watch.status !== "active") {
+        return false;
+      }
       if (watch.lastReviewRequestHeadSha === pullRequest.headSha) {
         return false;
       }
