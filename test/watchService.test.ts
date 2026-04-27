@@ -81,6 +81,51 @@ test("getDelta returns new unhandled feedback and markHandled advances the curso
   assert.equal(after.watch.cursor, 1);
 });
 
+test("markHandled ignores unknown event IDs when advancing the cursor", async () => {
+  const watches = await service();
+  await watches.registerWatch({ repo: "owner/repo", prNumber: 7, completeOnQuiet: false });
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "review_comment",
+    author: "codex-review-bot",
+    body: "Please keep this visible.",
+  });
+
+  const watch = await watches.markHandled("owner/repo", [999], 7);
+  const delta = await watches.getDelta("owner/repo", 7);
+
+  assert.equal(watch.cursor, 0);
+  assert.equal(delta.events.length, 1);
+  assert.equal(delta.events[0].body, "Please keep this visible.");
+});
+
+test("markHandled does not advance past lower unhandled events", async () => {
+  const watches = await service();
+  await watches.registerWatch({ repo: "owner/repo", prNumber: 7, completeOnQuiet: false });
+  const first = await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "review_comment",
+    author: "codex-review-bot",
+    body: "Handle me later.",
+  });
+  const second = await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "review_comment",
+    author: "codex-review-bot",
+    body: "Handled first.",
+  });
+
+  const watch = await watches.markHandled("owner/repo", [second?.id ?? 0], 7);
+  const delta = await watches.getDelta("owner/repo", 7);
+
+  assert.equal(watch.cursor, 0);
+  assert.equal(delta.events.length, 1);
+  assert.equal(delta.events[0].id, first?.id);
+});
+
 test("bot approval completes the watch", async () => {
   const watches = await service();
   await watches.registerWatch({
@@ -124,6 +169,29 @@ test("quiet period completes only when feedback is handled", async () => {
   const completed = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:31:00.000Z"));
 
   assert.equal(withOpenFeedback.completed, false);
+  assert.equal(completed.completed, true);
+  assert.equal(completed.completionReason, "quiet_period");
+});
+
+test("quiet period ignores watcher-generated Codex review trigger comments", async () => {
+  const watches = await service();
+  const start = new Date("2026-04-26T12:00:00.000Z");
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    quietMinutes: 10,
+  }, start);
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "issue_comment",
+    author: "Alechilles",
+    body: "@codex review",
+    createdAt: "2026-04-26T12:01:00.000Z",
+  });
+
+  const completed = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:20:00.000Z"));
+
   assert.equal(completed.completed, true);
   assert.equal(completed.completionReason, "quiet_period");
 });

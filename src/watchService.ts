@@ -238,9 +238,7 @@ export class WatchService {
         }
       }
 
-      if (eventIds.length > 0) {
-        watch.cursor = Math.max(watch.cursor, ...eventIds);
-      }
+      watch.cursor = nextCursor(db, watch);
       watch.updatedAt = now.toISOString();
       updateCompletion(db, watch, now);
       return structuredClone(watch);
@@ -351,10 +349,29 @@ function completionReason(db: WatchDatabase, watch: Watch, now: Date): Completio
 }
 
 function isFeedback(event: WatchEvent): boolean {
+  if (event.kind === "issue_comment" && event.body?.trim() === CODEX_REVIEW_TRIGGER_COMMENT) {
+    return false;
+  }
   if (event.kind === "review_comment" || event.kind === "issue_comment") {
     return true;
   }
   return event.kind === "review_submitted" && event.state?.toLowerCase() !== "approved";
+}
+
+function nextCursor(db: WatchDatabase, watch: Watch): number {
+  let cursor = watch.cursor;
+  const events = db.events
+    .filter((event) => event.watchId === watch.id && event.id > cursor)
+    .sort((left, right) => left.id - right.id);
+
+  for (const event of events) {
+    if (!event.handledAt) {
+      break;
+    }
+    cursor = event.id;
+  }
+
+  return cursor;
 }
 
 function isThumbsUp(reaction?: string): boolean {

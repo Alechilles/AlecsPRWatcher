@@ -51,7 +51,7 @@ export class RemoteWatchClient {
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const url = new URL(path, this.baseUrl);
+    const url = resolveApiUrl(this.baseUrl, path);
     if (this.resolveIp) {
       return this.requestWithPinnedIp<T>(url, init);
     }
@@ -117,4 +117,10 @@ export class RemoteWatchClient {
     }
     return JSON.parse(responseBody.body) as T;
   }
+}
+
+export function resolveApiUrl(baseUrl: string, path: string): URL {
+  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  const relativePath = path.startsWith("/") ? path.slice(1) : path;
+  return new URL(relativePath, normalizedBase);
 }
