@@ -272,6 +272,31 @@ test("refreshCodexReviewState completes when polling finds an approved Codex rev
   assert.equal(watch.completionReason, "bot_approved");
 });
 
+test("refreshCodexReviewState ignores stale reviews from before the active watch cycle", async () => {
+  const watches = await service();
+  const github = new FakeCodexClient();
+  github.reviews = [
+    {
+      state: "APPROVED",
+      author: "chatgpt-codex-connector[bot]",
+      commitSha: "sha-1",
+      submittedAt: "2026-04-27T12:01:00.000Z",
+    },
+  ];
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    completeOnApproval: true,
+  }, new Date("2026-04-27T12:10:00.000Z"));
+
+  const watch = await watches.refreshCodexReviewState("owner/repo", github, 7, new Date("2026-04-27T12:11:00.000Z"));
+
+  assert.deepEqual(github.comments, ["@codex review"]);
+  assert.equal(watch.status, "active");
+  assert.equal(watch.codexReviewSeenHeadSha, undefined);
+  assert.equal(watch.lastReviewRequestHeadSha, "sha-1");
+});
+
 test("refreshCodexReviewState prefers approved Codex reviews for the same head", async () => {
   const watches = await service();
   const github = new FakeCodexClient();

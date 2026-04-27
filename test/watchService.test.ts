@@ -450,3 +450,38 @@ test("quiet period uses latest review thread state for feedback checks", async (
   assert.equal(completed.completed, true);
   assert.equal(completed.completionReason, "quiet_period");
 });
+
+test("quiet period uses review thread action time when delivery order is stale", async () => {
+  const watches = await service();
+  const start = new Date("2026-04-26T12:00:00.000Z");
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    quietMinutes: 10,
+  }, start);
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    githubNodeId: "thread-1",
+    kind: "review_thread",
+    action: "resolved",
+    author: "reviewer",
+    body: "Review thread resolved",
+    createdAt: "2026-04-26T12:02:00.000Z",
+  });
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    githubNodeId: "thread-1",
+    kind: "review_thread",
+    action: "unresolved",
+    author: "reviewer",
+    body: "Stale unresolved delivery",
+    createdAt: "2026-04-26T12:01:00.000Z",
+  });
+
+  const completed = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:20:00.000Z"));
+
+  assert.equal(completed.completed, true);
+  assert.equal(completed.completionReason, "quiet_period");
+});

@@ -164,7 +164,11 @@ export class WatchService {
       : current.lastObservedHeadAt ?? timestamp;
     const codexLogins = codexActorLogins(current);
     const codexReviews = reviews
-      .filter((review) => review.commitSha === pullRequest.headSha && isCodexActor(review.author, codexLogins))
+      .filter((review) =>
+        review.commitSha === pullRequest.headSha &&
+        isCodexActor(review.author, codexLogins) &&
+        isAtOrAfter(review.submittedAt, current.createdAt),
+      )
       .sort((left, right) => timestampMillis(right.submittedAt) - timestampMillis(left.submittedAt));
     const codexReview = codexReviews.find((review) => review.state.toLowerCase() === "approved") ?? codexReviews[0];
     const codexReactions = reactions
@@ -399,7 +403,7 @@ function hasOpenFeedback(events: WatchEvent[]): boolean {
 
     const key = reviewThreadKey(event);
     const existing = latestThreadEvents.get(key);
-    if (!existing || event.id > existing.id) {
+    if (!existing || isFresherEvent(event, existing)) {
       latestThreadEvents.set(key, event);
     }
   }
@@ -413,6 +417,16 @@ function reviewThreadKey(event: WatchEvent): string {
 
 function isInCurrentCycle(event: WatchEvent, watch: Watch): boolean {
   return new Date(event.createdAt).getTime() >= new Date(watch.createdAt).getTime();
+}
+
+function isAtOrAfter(timestamp: string | undefined, cutoff: string): boolean {
+  return timestampMillis(timestamp) >= timestampMillis(cutoff);
+}
+
+function isFresherEvent(left: WatchEvent, right: WatchEvent): boolean {
+  const leftTime = timestampMillis(left.createdAt);
+  const rightTime = timestampMillis(right.createdAt);
+  return leftTime > rightTime || (leftTime === rightTime && left.id > right.id);
 }
 
 function isFeedback(event: WatchEvent): boolean {
