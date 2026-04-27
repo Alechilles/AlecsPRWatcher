@@ -27,9 +27,9 @@ Repository permissions:
 
 - `Metadata`: Read-only
 - `Pull requests`: Read-only
-- `Issues`: Read-only
+- `Issues`: Read and write
 
-No write permission is required for the watcher itself. Codex still uses its normal GitHub access to push commits, reply to review threads, and resolve comments.
+`Issues` write access lets the watcher post `@codex review` on the PR conversation when the latest head commit has not been acknowledged by Codex with an eyes reaction, a review, or a thumbs-up reaction. Codex still uses its normal GitHub access to push commits, reply to review threads, and resolve comments.
 
 ## Events
 

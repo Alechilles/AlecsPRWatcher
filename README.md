@@ -39,7 +39,9 @@ Recommended repository permissions:
 
 - `Metadata`: Read-only
 - `Pull requests`: Read-only
-- `Issues`: Read-only
+- `Issues`: Read and write
+
+`Issues` write access is required so the watcher can post `@codex review` when a new PR head SHA has not been acknowledged by the Codex review bot.
 
 Subscribe to events:
 

@@ -124,6 +124,9 @@ async function handleApiRequest(
       sendJson(response, 400, { ok: false, error: "repo query parameter is required" });
       return;
     }
+    if (githubApp) {
+      await service.refreshCodexReviewState(repo, githubApp, pr ? Number(pr) : undefined);
+    }
     sendJson(response, 200, await service.getDelta(repo, pr ? Number(pr) : undefined));
     return;
   }

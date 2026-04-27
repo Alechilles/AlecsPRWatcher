@@ -1,5 +1,6 @@
 import type {
   CompletionReason,
+  CodexReviewSignalClient,
   IngestEventInput,
   RegisterWatchInput,
   ReviewDelta,
@@ -11,9 +12,11 @@ import type {
 } from "./types.js";
 import { StateStore } from "./stateStore.js";
 
-const DEFAULT_BOT_LOGIN = "codex";
+const DEFAULT_CODEX_REVIEW_BOT_LOGIN = "chatgpt-codex-connector[bot]";
+const DEFAULT_BOT_LOGIN = DEFAULT_CODEX_REVIEW_BOT_LOGIN;
 const DEFAULT_QUIET_MINUTES = 15;
 const DEFAULT_TIMEOUT_MINUTES = 240;
+const CODEX_REVIEW_TRIGGER_COMMENT = "@codex review";
 
 export class WatchService {
   constructor(private readonly store = new StateStore()) {}
@@ -29,7 +32,7 @@ export class WatchService {
         quietMinutes: normalized.quietMinutes ?? existing?.policy.quietMinutes ?? DEFAULT_QUIET_MINUTES,
         timeoutMinutes: normalized.timeoutMinutes ?? existing?.policy.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES,
         completeOnApproval: normalized.completeOnApproval ?? existing?.policy.completeOnApproval ?? true,
-        completeOnThumbsUp: normalized.completeOnThumbsUp ?? existing?.policy.completeOnThumbsUp ?? false,
+        completeOnThumbsUp: normalized.completeOnThumbsUp ?? existing?.policy.completeOnThumbsUp ?? true,
         completeOnQuiet: normalized.completeOnQuiet ?? existing?.policy.completeOnQuiet ?? true,
       };
 
@@ -115,6 +118,108 @@ export class WatchService {
         completed: watch.status === "completed",
         completionReason: watch.completionReason,
       };
+    });
+  }
+
+  async refreshCodexReviewState(
+    watchIdOrRepo: string,
+    github: CodexReviewSignalClient,
+    prNumber?: number,
+    now = new Date(),
+  ): Promise<Watch> {
+    const id = resolveWatchId(watchIdOrRepo, prNumber);
+    const current = await this.store.update((db) => {
+      const watch = db.watches[id];
+      if (!watch) {
+        throw new Error(`No watch registered for ${id}`);
+      }
+      return structuredClone(watch);
+    });
+    if (current.status !== "active") {
+      return current;
+    }
+
+    const [pullRequest, reactions, reviews] = await Promise.all([
+      github.getPullRequest(current.repo, current.prNumber),
+      github.listIssueReactions(current.repo, current.prNumber),
+      github.listPullRequestReviews(current.repo, current.prNumber),
+    ]);
+    const timestamp = now.toISOString();
+    const headChanged = current.lastObservedHeadSha !== pullRequest.headSha;
+    const observedAt = headChanged ? timestamp : current.lastObservedHeadAt ?? timestamp;
+    const codexLogins = codexActorLogins(current);
+    const codexReview = reviews.find(
+      (review) => review.commitSha === pullRequest.headSha && isCodexActor(review.author, codexLogins),
+    );
+    const codexReaction = reactions.find(
+      (reaction) =>
+        isCodexActor(reaction.userLogin, codexLogins) &&
+        new Date(reaction.createdAt).getTime() >= new Date(observedAt).getTime() &&
+        (reaction.content === "eyes" || isThumbsUp(reaction.content)),
+    );
+    const thumbsUp = codexReaction && isThumbsUp(codexReaction.content);
+    const seenAt = codexReaction?.createdAt ?? codexReview?.submittedAt ?? timestamp;
+
+    if (codexReview || codexReaction) {
+      return this.store.update((db) => {
+        const watch = db.watches[id];
+        if (!watch) {
+          throw new Error(`No watch registered for ${id}`);
+        }
+        watch.lastObservedHeadSha = pullRequest.headSha;
+        watch.lastObservedHeadAt = observedAt;
+        watch.codexReviewSeenHeadSha = pullRequest.headSha;
+        watch.codexReviewSeenAt = seenAt;
+        watch.updatedAt = timestamp;
+        if (thumbsUp && watch.policy.completeOnThumbsUp && watch.status === "active") {
+          watch.status = "completed";
+          watch.completedAt = timestamp;
+          watch.completionReason = "bot_thumbs_up";
+        }
+        return structuredClone(watch);
+      });
+    }
+
+    const shouldRequestReview = current.lastReviewRequestHeadSha !== pullRequest.headSha;
+    if (!shouldRequestReview) {
+      return this.store.update((db) => {
+        const watch = db.watches[id];
+        if (!watch) {
+          throw new Error(`No watch registered for ${id}`);
+        }
+        watch.lastObservedHeadSha = pullRequest.headSha;
+        watch.lastObservedHeadAt = observedAt;
+        watch.updatedAt = timestamp;
+        return structuredClone(watch);
+      });
+    }
+
+    const reserved = await this.store.update((db) => {
+      const watch = db.watches[id];
+      if (!watch) {
+        throw new Error(`No watch registered for ${id}`);
+      }
+      if (watch.lastReviewRequestHeadSha === pullRequest.headSha) {
+        return false;
+      }
+      watch.lastObservedHeadSha = pullRequest.headSha;
+      watch.lastObservedHeadAt = observedAt;
+      watch.lastReviewRequestHeadSha = pullRequest.headSha;
+      watch.lastReviewRequestAt = timestamp;
+      watch.updatedAt = timestamp;
+      return true;
+    });
+
+    if (reserved) {
+      await github.createIssueComment(current.repo, current.prNumber, CODEX_REVIEW_TRIGGER_COMMENT);
+    }
+
+    return this.store.update((db) => {
+      const watch = db.watches[id];
+      if (!watch) {
+        throw new Error(`No watch registered for ${id}`);
+      }
+      return structuredClone(watch);
     });
   }
 
@@ -258,6 +363,18 @@ function isThumbsUp(reaction?: string): boolean {
 
 function equalsLogin(left: string | undefined, right: string): boolean {
   return left?.toLowerCase() === right.toLowerCase();
+}
+
+function isCodexActor(login: string | undefined, codexLogins: Set<string>): boolean {
+  return login ? codexLogins.has(login.toLowerCase()) : false;
+}
+
+function codexActorLogins(watch: Watch): Set<string> {
+  return new Set(
+    [watch.policy.botLogin, DEFAULT_CODEX_REVIEW_BOT_LOGIN, process.env.CODEX_REVIEW_BOT_LOGIN ?? ""]
+      .filter((login) => login.length > 0)
+      .map((login) => login.toLowerCase()),
+  );
 }
 
 function minutesBetween(left: Date, right: Date): number {

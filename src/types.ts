@@ -28,6 +28,12 @@ export interface Watch {
   createdAt: string;
   updatedAt: string;
   lastActivityAt: string;
+  lastObservedHeadSha?: string;
+  lastObservedHeadAt?: string;
+  lastReviewRequestHeadSha?: string;
+  lastReviewRequestAt?: string;
+  codexReviewSeenHeadSha?: string;
+  codexReviewSeenAt?: string;
   completedAt?: string;
   completionReason?: CompletionReason;
 }
@@ -101,4 +107,28 @@ export interface ReviewDelta {
   events: WatchEvent[];
   completed: boolean;
   completionReason?: CompletionReason;
+}
+
+export interface PullRequestSnapshot {
+  headSha: string;
+}
+
+export interface IssueReactionSnapshot {
+  content: string;
+  userLogin?: string;
+  createdAt: string;
+}
+
+export interface PullRequestReviewSnapshot {
+  state: string;
+  author?: string;
+  commitSha?: string;
+  submittedAt?: string;
+}
+
+export interface CodexReviewSignalClient {
+  getPullRequest(repo: string, prNumber: number): Promise<PullRequestSnapshot>;
+  listIssueReactions(repo: string, prNumber: number): Promise<IssueReactionSnapshot[]>;
+  listPullRequestReviews(repo: string, prNumber: number): Promise<PullRequestReviewSnapshot[]>;
+  createIssueComment(repo: string, prNumber: number, body: string): Promise<{ url?: string }>;
 }
