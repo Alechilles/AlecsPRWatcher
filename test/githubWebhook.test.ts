@@ -34,8 +34,29 @@ test("toIngestEvent parses pull request review comments", () => {
   assert.equal(event?.body, "Please extract this helper.");
 });
 
+test("toIngestEvent uses updated time for edited review comments", () => {
+  const event = toIngestEvent("pull_request_review_comment", "delivery-2", {
+    action: "edited",
+    repository: { full_name: "Owner/Repo" },
+    pull_request: { number: 42 },
+    comment: {
+      node_id: "PRRC_node",
+      user: { login: "reviewer" },
+      body: "Updated feedback.",
+      html_url: "https://github.com/Owner/Repo/pull/42#discussion_r1",
+      commit_id: "abc123",
+      created_at: "2026-04-20T12:00:00Z",
+      updated_at: "2026-04-26T12:00:00Z",
+    },
+  });
+
+  assert.equal(event?.kind, "review_comment");
+  assert.equal(event?.action, "edited");
+  assert.equal(event?.createdAt, "2026-04-26T12:00:00Z");
+});
+
 test("toIngestEvent parses review approvals", () => {
-  const event = toIngestEvent("pull_request_review", "delivery-2", {
+  const event = toIngestEvent("pull_request_review", "delivery-3", {
     action: "submitted",
     repository: { full_name: "Owner/Repo" },
     pull_request: { number: 42 },
@@ -55,7 +76,7 @@ test("toIngestEvent parses review approvals", () => {
 });
 
 test("toIngestEvent parses pull request review thread events", () => {
-  const event = toIngestEvent("pull_request_review_thread", "delivery-3", {
+  const event = toIngestEvent("pull_request_review_thread", "delivery-4", {
     action: "unresolved",
     repository: { full_name: "Owner/Repo" },
     pull_request: { number: 42, html_url: "https://github.com/Owner/Repo/pull/42" },
@@ -73,7 +94,7 @@ test("toIngestEvent parses pull request review thread events", () => {
 });
 
 test("toIngestEvent parses pull request synchronize events", () => {
-  const event = toIngestEvent("pull_request", "delivery-4", {
+  const event = toIngestEvent("pull_request", "delivery-5", {
     action: "synchronize",
     repository: { full_name: "Owner/Repo" },
     pull_request: {
@@ -92,7 +113,7 @@ test("toIngestEvent parses pull request synchronize events", () => {
 });
 
 test("toIngestEvent parses thumbs-up reactions on PR issue payloads", () => {
-  const event = toIngestEvent("reaction", "delivery-5", {
+  const event = toIngestEvent("reaction", "delivery-6", {
     action: "created",
     repository: { full_name: "Owner/Repo" },
     issue: {
@@ -114,7 +135,7 @@ test("toIngestEvent parses thumbs-up reactions on PR issue payloads", () => {
 });
 
 test("toIngestEvent ignores non-created issue comments", () => {
-  const event = toIngestEvent("issue_comment", "delivery-6", {
+  const event = toIngestEvent("issue_comment", "delivery-7", {
     action: "edited",
     repository: { full_name: "Owner/Repo" },
     issue: {
@@ -134,7 +155,7 @@ test("toIngestEvent ignores non-created issue comments", () => {
 });
 
 test("toIngestEvent ignores unsupported webhook events", () => {
-  const event = toIngestEvent("pull_request", "delivery-7", {
+  const event = toIngestEvent("pull_request", "delivery-8", {
     action: "edited",
     repository: { full_name: "Owner/Repo" },
     pull_request: { number: 42 },

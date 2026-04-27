@@ -294,7 +294,7 @@ test("quiet period ignores watcher-generated Codex review trigger comments", asy
     repo: "owner/repo",
     prNumber: 7,
     kind: "issue_comment",
-    author: "Alechilles",
+    author: "alec-s-pr-watcher[bot]",
     body: "@codex review",
     createdAt: "2026-04-26T12:01:00.000Z",
   });
@@ -303,6 +303,29 @@ test("quiet period ignores watcher-generated Codex review trigger comments", asy
 
   assert.equal(completed.completed, true);
   assert.equal(completed.completionReason, "quiet_period");
+});
+
+test("quiet period treats human Codex review trigger comments as feedback", async () => {
+  const watches = await service();
+  const start = new Date("2026-04-26T12:00:00.000Z");
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    quietMinutes: 10,
+  }, start);
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "issue_comment",
+    author: "Alechilles",
+    body: "@codex review",
+    createdAt: "2026-04-26T12:01:00.000Z",
+  });
+
+  const delta = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:20:00.000Z"));
+
+  assert.equal(delta.completed, false);
+  assert.equal(delta.events.length, 1);
 });
 
 test("quiet period waits for unhandled non-approval review submissions", async () => {

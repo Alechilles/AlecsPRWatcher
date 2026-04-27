@@ -62,7 +62,7 @@ export function toIngestEvent(
       url: payload.comment?.html_url,
       commitSha: payload.comment?.commit_id,
       rawEventName: eventName,
-      createdAt: payload.comment?.created_at,
+      createdAt: payload.action === "created" ? payload.comment?.created_at : payload.comment?.updated_at,
     };
   }
 

@@ -416,7 +416,7 @@ function isFeedback(event: WatchEvent): boolean {
   if (event.action === "deleted" || event.action === "dismissed") {
     return false;
   }
-  if (event.kind === "issue_comment" && event.body?.trim() === CODEX_REVIEW_TRIGGER_COMMENT) {
+  if (event.kind === "issue_comment" && isBotAuthoredTriggerComment(event)) {
     return false;
   }
   if (event.kind === "review_thread") {
@@ -426,6 +426,10 @@ function isFeedback(event: WatchEvent): boolean {
     return true;
   }
   return event.kind === "review_submitted" && event.state?.toLowerCase() !== "approved";
+}
+
+function isBotAuthoredTriggerComment(event: WatchEvent): boolean {
+  return event.body?.trim() === CODEX_REVIEW_TRIGGER_COMMENT && event.author?.toLowerCase().endsWith("[bot]") === true;
 }
 
 function nextCursor(db: WatchDatabase, watch: Watch): number {
