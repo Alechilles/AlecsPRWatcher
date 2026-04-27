@@ -8,6 +8,33 @@ export interface WatchClient {
   listWatches(): Promise<Watch[]>;
 }
 
+export class LazyWatchClient implements WatchClient {
+  private client: WatchClient | undefined;
+
+  constructor(private readonly createClient: () => WatchClient) {}
+
+  registerWatch(input: RegisterWatchInput): Promise<Watch> {
+    return this.getClient().registerWatch(input);
+  }
+
+  getDelta(watchIdOrRepo: string, prNumber?: number): Promise<ReviewDelta> {
+    return this.getClient().getDelta(watchIdOrRepo, prNumber);
+  }
+
+  markHandled(watchIdOrRepo: string, eventIds: number[], prNumber?: number): Promise<Watch> {
+    return this.getClient().markHandled(watchIdOrRepo, eventIds, prNumber);
+  }
+
+  listWatches(): Promise<Watch[]> {
+    return this.getClient().listWatches();
+  }
+
+  private getClient(): WatchClient {
+    this.client ??= this.createClient();
+    return this.client;
+  }
+}
+
 export class RefreshingWatchClient implements WatchClient {
   constructor(
     private readonly service: WatchService,

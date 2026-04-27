@@ -392,27 +392,33 @@ function completionReason(db: WatchDatabase, watch: Watch, now: Date): Completio
 }
 
 function hasOpenFeedback(events: WatchEvent[]): boolean {
-  const latestThreadEvents = new Map<string, WatchEvent>();
+  const latestFeedbackEvents = new Map<string, WatchEvent>();
   for (const event of events) {
-    if (event.kind !== "review_thread") {
-      if (isFeedback(event) && !event.handledAt) {
-        return true;
-      }
+    if (!isFeedbackLifecycleEvent(event)) {
       continue;
     }
 
-    const key = reviewThreadKey(event);
-    const existing = latestThreadEvents.get(key);
+    const key = feedbackEventKey(event);
+    const existing = latestFeedbackEvents.get(key);
     if (!existing || isFresherEvent(event, existing)) {
-      latestThreadEvents.set(key, event);
+      latestFeedbackEvents.set(key, event);
     }
   }
 
-  return Array.from(latestThreadEvents.values()).some((event) => isFeedback(event) && !event.handledAt);
+  return Array.from(latestFeedbackEvents.values()).some((event) => isFeedback(event) && !event.handledAt);
 }
 
-function reviewThreadKey(event: WatchEvent): string {
-  return event.githubNodeId ?? event.url ?? String(event.id);
+function isFeedbackLifecycleEvent(event: WatchEvent): boolean {
+  return (
+    event.kind === "review_thread" ||
+    event.kind === "review_comment" ||
+    event.kind === "review_submitted" ||
+    event.kind === "issue_comment"
+  );
+}
+
+function feedbackEventKey(event: WatchEvent): string {
+  return `${event.kind}:${event.githubNodeId ?? event.url ?? event.id}`;
 }
 
 function isInCurrentCycle(event: WatchEvent, watch: Watch): boolean {

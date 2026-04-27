@@ -33,11 +33,11 @@ Environment:
 
 export async function main(argv = process.argv.slice(2)): Promise<void> {
   const parsed = parseArgs(argv);
-  const service = createCliWatchClient();
+  const service = () => createCliWatchClient();
 
   switch (parsed.command) {
     case "register": {
-      const watch = await service.registerWatch({
+      const watch = await service().registerWatch({
         repo: requiredString(parsed, "repo"),
         prNumber: requiredNumber(parsed, "pr"),
         branch: optionalString(parsed, "branch"),
@@ -55,7 +55,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     }
     case "delta":
     case "status": {
-      const delta = await service.getDelta(requiredString(parsed, "repo"), requiredNumber(parsed, "pr"));
+      const delta = await service().getDelta(requiredString(parsed, "repo"), requiredNumber(parsed, "pr"));
       printJson(delta);
       return;
     }
@@ -64,12 +64,12 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
         .split(",")
         .map((value) => Number(value.trim()))
         .filter((value) => Number.isInteger(value) && value > 0);
-      const watch = await service.markHandled(requiredString(parsed, "repo"), eventIds, requiredNumber(parsed, "pr"));
+      const watch = await service().markHandled(requiredString(parsed, "repo"), eventIds, requiredNumber(parsed, "pr"));
       printJson(watch);
       return;
     }
     case "list": {
-      printJson(await service.listWatches());
+      printJson(await service().listWatches());
       return;
     }
     case "app": {

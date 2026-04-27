@@ -6,10 +6,10 @@ import { z } from "zod";
 import { GitHubAppClient } from "./githubAppAuth.js";
 import { RemoteWatchClient } from "./remoteWatchClient.js";
 import { StateStore } from "./stateStore.js";
-import { RefreshingWatchClient, type WatchClient } from "./watchClient.js";
+import { LazyWatchClient, RefreshingWatchClient, type WatchClient } from "./watchClient.js";
 import { WatchService } from "./watchService.js";
 
-export function createMcpServer(service: WatchClient = createDefaultWatchClient()): McpServer {
+export function createMcpServer(service: WatchClient = new LazyWatchClient(createDefaultWatchClient)): McpServer {
   const server = new McpServer({
     name: "codex-pr-review-watcher",
     version: "0.1.0",
