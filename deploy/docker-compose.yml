@@ -1,0 +1,16 @@
+services:
+  pr-review-watcher:
+    build: .
+    container_name: codex-pr-review-watcher
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+      - ./secrets/github-app-private-key.pem:/run/secrets/github-app-private-key.pem:ro
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true

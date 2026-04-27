@@ -1,0 +1,8 @@
+node_modules
+dist
+logs
+bin
+.codex-pr-watcher.json
+.github-webhook-secret.txt
+.public-webhook-base-url.txt
+.git
