@@ -2,6 +2,8 @@ import { startMcpServer } from "./mcp.js";
 import { RemoteWatchClient } from "./remoteWatchClient.js";
 import { startServer } from "./server.js";
 import { StateStore, defaultDbPath } from "./stateStore.js";
+import { GitHubAppClient } from "./githubAppAuth.js";
+import { RefreshingWatchClient, type WatchClient } from "./watchClient.js";
 import { WatchService } from "./watchService.js";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -113,7 +115,7 @@ async function requestRemoteAppStatus(): Promise<unknown> {
   return client.rawGet("/api/github-app");
 }
 
-function createCliWatchClient(): Pick<WatchService, "registerWatch" | "getDelta" | "markHandled" | "listWatches"> {
+function createCliWatchClient(): WatchClient {
   const apiUrl = process.env.CODEX_PR_WATCHER_API_URL;
   const apiToken = process.env.CODEX_PR_WATCHER_API_TOKEN;
   if (apiUrl || apiToken) {
@@ -122,7 +124,7 @@ function createCliWatchClient(): Pick<WatchService, "registerWatch" | "getDelta"
     }
     return new RemoteWatchClient(apiUrl, apiToken, process.env.CODEX_PR_WATCHER_API_IP);
   }
-  return new WatchService(new StateStore(defaultDbPath()));
+  return new RefreshingWatchClient(new WatchService(new StateStore(defaultDbPath())), GitHubAppClient.fromEnvironment());
 }
 
 export function reviewPrompt(repo: string, prNumber: number): string {

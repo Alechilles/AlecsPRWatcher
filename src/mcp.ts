@@ -3,11 +3,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { GitHubAppClient } from "./githubAppAuth.js";
 import { RemoteWatchClient } from "./remoteWatchClient.js";
 import { StateStore } from "./stateStore.js";
+import { RefreshingWatchClient, type WatchClient } from "./watchClient.js";
 import { WatchService } from "./watchService.js";
-
-type WatchClient = Pick<WatchService, "registerWatch" | "getDelta" | "markHandled" | "listWatches">;
 
 export function createMcpServer(service: WatchClient = createDefaultWatchClient()): McpServer {
   const server = new McpServer({
@@ -100,7 +100,7 @@ function createDefaultWatchClient(): WatchClient {
     }
     return new RemoteWatchClient(apiUrl, apiToken, process.env.CODEX_PR_WATCHER_API_IP);
   }
-  return new WatchService(new StateStore());
+  return new RefreshingWatchClient(new WatchService(new StateStore()), GitHubAppClient.fromEnvironment());
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {

@@ -163,6 +163,28 @@ test("refreshCodexReviewState uses head-change webhook time as reaction cutoff",
   assert.equal(watch.codexReviewSeenAt, "2026-04-27T12:06:00.000Z");
 });
 
+test("refreshCodexReviewState ignores stale reactions when head changed without webhook timing", async () => {
+  const watches = await service();
+  const github = new FakeCodexClient();
+  await watches.registerWatch({ repo: "owner/repo", prNumber: 7 }, new Date("2026-04-27T12:00:00.000Z"));
+  await watches.refreshCodexReviewState("owner/repo", github, 7, new Date("2026-04-27T12:01:00.000Z"));
+
+  github.headSha = "sha-2";
+  github.reactions = [
+    {
+      content: "+1",
+      userLogin: "chatgpt-codex-connector[bot]",
+      createdAt: "2026-04-27T12:02:00.000Z",
+    },
+  ];
+
+  const watch = await watches.refreshCodexReviewState("owner/repo", github, 7, new Date("2026-04-27T12:10:00.000Z"));
+
+  assert.deepEqual(github.comments, ["@codex review", "@codex review"]);
+  assert.equal(watch.status, "active");
+  assert.equal(watch.codexReviewSeenHeadSha, undefined);
+});
+
 test("refreshCodexReviewState completes when Codex gives thumbs up after seeing the latest head", async () => {
   const watches = await service();
   const github = new FakeCodexClient();

@@ -158,7 +158,9 @@ export class WatchService {
     const timestamp = now.toISOString();
     const headChanged = current.lastObservedHeadSha !== pullRequest.headSha;
     const observedAt = headChanged
-      ? current.lastObservedHeadAt ?? current.createdAt
+      ? current.lastObservedHeadSha === undefined
+        ? current.createdAt
+        : timestamp
       : current.lastObservedHeadAt ?? timestamp;
     const codexLogins = codexActorLogins(current);
     const codexReview = reviews.find(
