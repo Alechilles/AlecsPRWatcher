@@ -75,3 +75,14 @@ test("toIngestEvent parses thumbs-up reactions on PR issue payloads", () => {
   assert.equal(event?.reaction, "+1");
   assert.equal(event?.author, "codex-review-bot");
 });
+
+test("toIngestEvent ignores unsupported webhook events", () => {
+  const event = toIngestEvent("pull_request", "delivery-4", {
+    action: "synchronize",
+    repository: { full_name: "Owner/Repo" },
+    pull_request: { number: 42 },
+    sender: { login: "Alechilles" },
+  });
+
+  assert.equal(event, undefined);
+});

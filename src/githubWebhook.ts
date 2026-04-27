@@ -116,15 +116,7 @@ export function toIngestEvent(
     };
   }
 
-  return {
-    repo,
-    prNumber: numericPr,
-    githubDeliveryId: deliveryId,
-    kind: "unknown",
-    action: payload.action,
-    author: payload.sender?.login,
-    rawEventName: eventName,
-  };
+  return undefined;
 }
 
 function headerValue(value: string | string[] | undefined): string | undefined {
