@@ -211,6 +211,51 @@ test("bot approval completes the watch", async () => {
   assert.equal(delta.completionReason, "bot_approved");
 });
 
+test("deleted thumbs-up reactions do not complete the watch", async () => {
+  const watches = await service();
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    botLogin: "codex-review-bot",
+    completeOnQuiet: false,
+  });
+
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "reaction",
+    action: "deleted",
+    author: "codex-review-bot",
+    reaction: "+1",
+  });
+  const delta = await watches.getDelta("owner/repo", 7);
+
+  assert.equal(delta.completed, false);
+  assert.equal(delta.watch.status, "active");
+});
+
+test("created thumbs-up reactions complete the watch", async () => {
+  const watches = await service();
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    botLogin: "codex-review-bot",
+  });
+
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "reaction",
+    action: "created",
+    author: "codex-review-bot",
+    reaction: "+1",
+  });
+  const delta = await watches.getDelta("owner/repo", 7);
+
+  assert.equal(delta.completed, true);
+  assert.equal(delta.completionReason, "bot_thumbs_up");
+});
+
 test("quiet period completes only when feedback is handled", async () => {
   const watches = await service();
   const start = new Date("2026-04-26T12:00:00.000Z");

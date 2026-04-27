@@ -163,9 +163,10 @@ export class WatchService {
         : timestamp
       : current.lastObservedHeadAt ?? timestamp;
     const codexLogins = codexActorLogins(current);
-    const codexReview = reviews.find(
-      (review) => review.commitSha === pullRequest.headSha && isCodexActor(review.author, codexLogins),
-    );
+    const codexReviews = reviews
+      .filter((review) => review.commitSha === pullRequest.headSha && isCodexActor(review.author, codexLogins))
+      .sort((left, right) => timestampMillis(right.submittedAt) - timestampMillis(left.submittedAt));
+    const codexReview = codexReviews.find((review) => review.state.toLowerCase() === "approved") ?? codexReviews[0];
     const codexReactions = reactions
       .filter((reaction) =>
         isCodexActor(reaction.userLogin, codexLogins) &&
@@ -364,7 +365,7 @@ function completionReason(db: WatchDatabase, watch: Watch, now: Date): Completio
 
   if (
     watch.policy.completeOnThumbsUp &&
-    botEvents.some((event) => event.kind === "reaction" && isThumbsUp(event.reaction))
+    botEvents.some((event) => event.kind === "reaction" && event.action === "created" && isThumbsUp(event.reaction))
   ) {
     return "bot_thumbs_up";
   }
@@ -451,6 +452,10 @@ function lastEventIdForWatch(db: WatchDatabase, watchId: string): number {
 
 function isThumbsUp(reaction?: string): boolean {
   return reaction === "+1" || reaction?.toLowerCase() === "thumbs_up";
+}
+
+function timestampMillis(timestamp?: string): number {
+  return timestamp ? new Date(timestamp).getTime() : 0;
 }
 
 function equalsLogin(left: string | undefined, right: string): boolean {
