@@ -54,8 +54,45 @@ test("toIngestEvent parses review approvals", () => {
   assert.equal(event?.state, "approved");
 });
 
+test("toIngestEvent parses pull request review thread events", () => {
+  const event = toIngestEvent("pull_request_review_thread", "delivery-3", {
+    action: "unresolved",
+    repository: { full_name: "Owner/Repo" },
+    pull_request: { number: 42, html_url: "https://github.com/Owner/Repo/pull/42" },
+    thread: {
+      node_id: "thread_node",
+      html_url: "https://github.com/Owner/Repo/pull/42#discussion_r1",
+      updated_at: "2026-04-26T12:02:00Z",
+    },
+    sender: { login: "reviewer" },
+  });
+
+  assert.equal(event?.kind, "review_thread");
+  assert.equal(event?.action, "unresolved");
+  assert.equal(event?.author, "reviewer");
+});
+
+test("toIngestEvent parses pull request synchronize events", () => {
+  const event = toIngestEvent("pull_request", "delivery-4", {
+    action: "synchronize",
+    repository: { full_name: "Owner/Repo" },
+    pull_request: {
+      number: 42,
+      node_id: "pr_node",
+      html_url: "https://github.com/Owner/Repo/pull/42",
+      updated_at: "2026-04-26T12:02:30Z",
+      head: { sha: "abc123" },
+    },
+    sender: { login: "Alechilles" },
+  });
+
+  assert.equal(event?.kind, "head_changed");
+  assert.equal(event?.commitSha, "abc123");
+  assert.equal(event?.createdAt, "2026-04-26T12:02:30Z");
+});
+
 test("toIngestEvent parses thumbs-up reactions on PR issue payloads", () => {
-  const event = toIngestEvent("reaction", "delivery-3", {
+  const event = toIngestEvent("reaction", "delivery-5", {
     action: "created",
     repository: { full_name: "Owner/Repo" },
     issue: {
@@ -77,7 +114,7 @@ test("toIngestEvent parses thumbs-up reactions on PR issue payloads", () => {
 });
 
 test("toIngestEvent ignores non-created issue comments", () => {
-  const event = toIngestEvent("issue_comment", "delivery-4", {
+  const event = toIngestEvent("issue_comment", "delivery-6", {
     action: "edited",
     repository: { full_name: "Owner/Repo" },
     issue: {
@@ -97,8 +134,8 @@ test("toIngestEvent ignores non-created issue comments", () => {
 });
 
 test("toIngestEvent ignores unsupported webhook events", () => {
-  const event = toIngestEvent("pull_request", "delivery-5", {
-    action: "synchronize",
+  const event = toIngestEvent("pull_request", "delivery-7", {
+    action: "edited",
     repository: { full_name: "Owner/Repo" },
     pull_request: { number: 42 },
     sender: { login: "Alechilles" },

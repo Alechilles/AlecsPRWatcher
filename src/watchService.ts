@@ -99,6 +99,10 @@ export class WatchService {
         db.deliveries[input.githubDeliveryId] = event.id;
       }
 
+      if (event.kind === "head_changed" && event.commitSha) {
+        watch.lastObservedHeadSha = event.commitSha;
+        watch.lastObservedHeadAt = now;
+      }
       watch.lastActivityAt = now;
       watch.updatedAt = now;
       updateCompletion(db, watch, new Date(now));
@@ -154,7 +158,7 @@ export class WatchService {
     const timestamp = now.toISOString();
     const headChanged = current.lastObservedHeadSha !== pullRequest.headSha;
     const observedAt = headChanged
-      ? pullRequest.updatedAt ?? current.lastObservedHeadAt ?? current.createdAt
+      ? current.lastObservedHeadAt ?? current.createdAt
       : current.lastObservedHeadAt ?? timestamp;
     const codexLogins = codexActorLogins(current);
     const codexReview = reviews.find(
@@ -382,6 +386,9 @@ function isFeedback(event: WatchEvent): boolean {
   }
   if (event.kind === "issue_comment" && event.body?.trim() === CODEX_REVIEW_TRIGGER_COMMENT) {
     return false;
+  }
+  if (event.kind === "review_thread") {
+    return event.action !== "resolved";
   }
   if (event.kind === "review_comment" || event.kind === "issue_comment") {
     return true;

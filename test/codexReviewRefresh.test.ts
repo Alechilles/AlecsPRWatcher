@@ -9,14 +9,13 @@ import { WatchService } from "../src/watchService.js";
 
 class FakeCodexClient implements CodexReviewSignalClient {
   headSha = "sha-1";
-  updatedAt: string | undefined;
   reactions: Awaited<ReturnType<CodexReviewSignalClient["listIssueReactions"]>> = [];
   reviews: Awaited<ReturnType<CodexReviewSignalClient["listPullRequestReviews"]>> = [];
   comments: string[] = [];
   failNextComment = false;
 
   async getPullRequest() {
-    return { headSha: this.headSha, updatedAt: this.updatedAt };
+    return { headSha: this.headSha };
   }
 
   async listIssueReactions() {
@@ -114,7 +113,6 @@ test("refreshCodexReviewState treats Codex eyes reaction as seen", async () => {
 test("refreshCodexReviewState accepts Codex reactions created before the new-head poll", async () => {
   const watches = await service();
   const github = new FakeCodexClient();
-  github.updatedAt = "2026-04-27T12:01:30.000Z";
   github.reactions = [
     {
       content: "eyes",
@@ -129,6 +127,40 @@ test("refreshCodexReviewState accepts Codex reactions created before the new-hea
   assert.equal(github.comments.length, 0);
   assert.equal(watch.codexReviewSeenHeadSha, "sha-1");
   assert.equal(watch.codexReviewSeenAt, "2026-04-27T12:02:00.000Z");
+});
+
+test("refreshCodexReviewState uses head-change webhook time as reaction cutoff", async () => {
+  const watches = await service();
+  const github = new FakeCodexClient();
+  await watches.registerWatch({ repo: "owner/repo", prNumber: 7 }, new Date("2026-04-27T12:00:00.000Z"));
+  await watches.refreshCodexReviewState("owner/repo", github, 7, new Date("2026-04-27T12:01:00.000Z"));
+
+  github.headSha = "sha-2";
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "head_changed",
+    commitSha: "sha-2",
+    createdAt: "2026-04-27T12:05:00.000Z",
+  });
+  github.reactions = [
+    {
+      content: "eyes",
+      userLogin: "chatgpt-codex-connector[bot]",
+      createdAt: "2026-04-27T12:04:00.000Z",
+    },
+    {
+      content: "eyes",
+      userLogin: "chatgpt-codex-connector[bot]",
+      createdAt: "2026-04-27T12:06:00.000Z",
+    },
+  ];
+
+  const watch = await watches.refreshCodexReviewState("owner/repo", github, 7, new Date("2026-04-27T12:10:00.000Z"));
+
+  assert.equal(github.comments.length, 1);
+  assert.equal(watch.codexReviewSeenHeadSha, "sha-2");
+  assert.equal(watch.codexReviewSeenAt, "2026-04-27T12:06:00.000Z");
 });
 
 test("refreshCodexReviewState completes when Codex gives thumbs up after seeing the latest head", async () => {

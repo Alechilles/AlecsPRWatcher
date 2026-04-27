@@ -40,9 +40,11 @@ export interface Watch {
 
 export type WatchEventKind =
   | "review_comment"
+  | "review_thread"
   | "review_submitted"
   | "issue_comment"
   | "reaction"
+  | "head_changed"
   | "unknown";
 
 export interface WatchEvent {
@@ -111,7 +113,6 @@ export interface ReviewDelta {
 
 export interface PullRequestSnapshot {
   headSha: string;
-  updatedAt?: string;
 }
 
 export interface IssueReactionSnapshot {

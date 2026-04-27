@@ -320,3 +320,30 @@ test("quiet period ignores deleted review comments and dismissed reviews", async
   assert.equal(completed.completed, true);
   assert.equal(completed.completionReason, "quiet_period");
 });
+
+test("quiet period treats unresolved review threads as open feedback", async () => {
+  const watches = await service();
+  const start = new Date("2026-04-26T12:00:00.000Z");
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    quietMinutes: 10,
+  }, start);
+  const event = await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "review_thread",
+    action: "unresolved",
+    author: "reviewer",
+    body: "Review thread unresolved",
+    createdAt: "2026-04-26T12:01:00.000Z",
+  });
+
+  const withOpenThread = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:20:00.000Z"));
+  await watches.markHandled("owner/repo", [event?.id ?? 0], 7, new Date("2026-04-26T12:20:00.000Z"));
+  const completed = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:31:00.000Z"));
+
+  assert.equal(withOpenThread.completed, false);
+  assert.equal(completed.completed, true);
+  assert.equal(completed.completionReason, "quiet_period");
+});

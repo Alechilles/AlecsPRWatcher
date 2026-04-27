@@ -66,6 +66,22 @@ export function toIngestEvent(
     };
   }
 
+  if (eventName === "pull_request_review_thread") {
+    return {
+      repo,
+      prNumber: numericPr,
+      githubDeliveryId: deliveryId,
+      githubNodeId: payload.thread?.node_id,
+      kind: "review_thread",
+      action: payload.action,
+      author: payload.sender?.login,
+      body: `Review thread ${payload.action}`,
+      url: payload.thread?.html_url ?? payload.pull_request?.html_url,
+      rawEventName: eventName,
+      createdAt: payload.thread?.updated_at ?? payload.pull_request?.updated_at,
+    };
+  }
+
   if (eventName === "pull_request_review") {
     return {
       repo,
@@ -81,6 +97,22 @@ export function toIngestEvent(
       commitSha: payload.review?.commit_id,
       rawEventName: eventName,
       createdAt: payload.review?.submitted_at,
+    };
+  }
+
+  if (eventName === "pull_request" && payload.action === "synchronize") {
+    return {
+      repo,
+      prNumber: numericPr,
+      githubDeliveryId: deliveryId,
+      githubNodeId: payload.pull_request?.node_id,
+      kind: "head_changed",
+      action: payload.action,
+      author: payload.sender?.login,
+      url: payload.pull_request?.html_url,
+      commitSha: payload.pull_request?.head?.sha,
+      rawEventName: eventName,
+      createdAt: payload.pull_request?.updated_at,
     };
   }
 

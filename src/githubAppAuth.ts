@@ -74,11 +74,11 @@ export class GitHubAppClient implements CodexReviewSignalClient {
   }
 
   async getPullRequest(repo: string, prNumber: number): Promise<PullRequestSnapshot> {
-    const response = await this.installationRequest<{ head: { sha: string }; updated_at?: string }>(
+    const response = await this.installationRequest<{ head: { sha: string } }>(
       repo,
       `/repos/${repo}/pulls/${prNumber}`,
     );
-    return { headSha: response.head.sha, updatedAt: response.updated_at };
+    return { headSha: response.head.sha };
   }
 
   async listIssueReactions(repo: string, prNumber: number): Promise<IssueReactionSnapshot[]> {
