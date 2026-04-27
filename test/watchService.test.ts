@@ -127,3 +127,30 @@ test("quiet period completes only when feedback is handled", async () => {
   assert.equal(completed.completed, true);
   assert.equal(completed.completionReason, "quiet_period");
 });
+
+test("quiet period waits for unhandled non-approval review submissions", async () => {
+  const watches = await service();
+  const start = new Date("2026-04-26T12:00:00.000Z");
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    quietMinutes: 10,
+  }, start);
+  const event = await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "review_submitted",
+    author: "codex-review-bot",
+    state: "changes_requested",
+    body: "Please address the review summary.",
+    createdAt: "2026-04-26T12:01:00.000Z",
+  });
+
+  const withOpenReview = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:20:00.000Z"));
+  await watches.markHandled("owner/repo", [event?.id ?? 0], 7, new Date("2026-04-26T12:20:00.000Z"));
+  const completed = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:31:00.000Z"));
+
+  assert.equal(withOpenReview.completed, false);
+  assert.equal(completed.completed, true);
+  assert.equal(completed.completionReason, "quiet_period");
+});

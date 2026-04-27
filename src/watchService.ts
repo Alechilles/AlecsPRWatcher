@@ -246,7 +246,10 @@ function completionReason(db: WatchDatabase, watch: Watch, now: Date): Completio
 }
 
 function isFeedback(event: WatchEvent): boolean {
-  return event.kind === "review_comment" || event.kind === "issue_comment";
+  if (event.kind === "review_comment" || event.kind === "issue_comment") {
+    return true;
+  }
+  return event.kind === "review_submitted" && event.state?.toLowerCase() !== "approved";
 }
 
 function isThumbsUp(reaction?: string): boolean {

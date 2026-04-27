@@ -19,6 +19,8 @@ export function createEmptyDatabase(): WatchDatabase {
 }
 
 export class StateStore {
+  private pendingUpdate: Promise<unknown> = Promise.resolve();
+
   constructor(private readonly path: string = defaultDbPath()) {}
 
   get filePath(): string {
@@ -50,9 +52,13 @@ export class StateStore {
   }
 
   async update<T>(mutate: (db: WatchDatabase) => T | Promise<T>): Promise<T> {
-    const db = await this.load();
-    const result = await mutate(db);
-    await this.save(db);
-    return result;
+    const run = this.pendingUpdate.then(async () => {
+      const db = await this.load();
+      const result = await mutate(db);
+      await this.save(db);
+      return result;
+    });
+    this.pendingUpdate = run.catch(() => undefined);
+    return run;
   }
 }
