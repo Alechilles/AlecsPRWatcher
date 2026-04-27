@@ -58,3 +58,32 @@ test("StateStore serializes concurrent updates", async () => {
   assert.deepEqual(ids, Array.from({ length: 20 }, (_, index) => index + 1));
   assert.equal(reloaded.nextEventId, 21);
 });
+
+test("StateStore serializes concurrent updates across store instances", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "codex-pr-watcher-"));
+  const path = join(dir, "watcher.json");
+  const stores = [new StateStore(path), new StateStore(path)];
+
+  await Promise.all(
+    Array.from({ length: 20 }, async (_, index) => {
+      const store = stores[index % stores.length];
+      await store.update(async (db) => {
+        await new Promise((resolve) => setTimeout(resolve, index % 3));
+        db.events.push({
+          id: db.nextEventId++,
+          watchId: "owner/repo#1",
+          kind: "issue_comment",
+          body: `event-${index}`,
+          createdAt: new Date(0).toISOString(),
+        });
+      });
+    }),
+  );
+
+  const reloaded = await stores[0].load();
+  const ids = reloaded.events.map((event) => event.id);
+
+  assert.equal(reloaded.events.length, 20);
+  assert.deepEqual(ids, Array.from({ length: 20 }, (_, index) => index + 1));
+  assert.equal(reloaded.nextEventId, 21);
+});

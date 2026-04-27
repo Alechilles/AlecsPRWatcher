@@ -27,6 +27,7 @@ export class WatchService {
       const id = watchId(normalized.repo, normalized.prNumber);
       const existing = db.watches[id];
       const timestamp = now.toISOString();
+      const startsNewCycle = existing?.status !== "active";
       const policy: WatchPolicy = {
         botLogin: normalized.botLogin ?? existing?.policy.botLogin ?? DEFAULT_BOT_LOGIN,
         quietMinutes: normalized.quietMinutes ?? existing?.policy.quietMinutes ?? DEFAULT_QUIET_MINUTES,
@@ -46,9 +47,15 @@ export class WatchService {
         status: "active",
         policy,
         cursor: existing?.cursor ?? 0,
-        createdAt: existing?.createdAt ?? timestamp,
+        createdAt: startsNewCycle ? timestamp : existing?.createdAt ?? timestamp,
         updatedAt: timestamp,
-        lastActivityAt: existing?.lastActivityAt ?? timestamp,
+        lastActivityAt: startsNewCycle ? timestamp : existing?.lastActivityAt ?? timestamp,
+        lastObservedHeadSha: startsNewCycle ? undefined : existing?.lastObservedHeadSha,
+        lastObservedHeadAt: startsNewCycle ? undefined : existing?.lastObservedHeadAt,
+        lastReviewRequestHeadSha: startsNewCycle ? undefined : existing?.lastReviewRequestHeadSha,
+        lastReviewRequestAt: startsNewCycle ? undefined : existing?.lastReviewRequestAt,
+        codexReviewSeenHeadSha: startsNewCycle ? undefined : existing?.codexReviewSeenHeadSha,
+        codexReviewSeenAt: startsNewCycle ? undefined : existing?.codexReviewSeenAt,
       };
       db.watches[id] = watch;
       return structuredClone(watch);
