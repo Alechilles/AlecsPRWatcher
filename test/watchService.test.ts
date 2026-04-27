@@ -63,6 +63,35 @@ test("registerWatch starts a fresh lifecycle when reviving a completed watch", a
   assert.equal(delta.completed, false);
 });
 
+test("registerWatch hides stale unhandled events when reviving a completed watch", async () => {
+  const watches = await service();
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    timeoutMinutes: 10,
+  }, new Date("2026-04-26T12:00:00.000Z"));
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "review_comment",
+    author: "codex-review-bot",
+    body: "Old feedback from the previous cycle.",
+    createdAt: "2026-04-26T12:01:00.000Z",
+  });
+  await watches.setStatus("owner/repo", "completed", 7, new Date("2026-04-26T12:15:00.000Z"));
+
+  const revived = await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    timeoutMinutes: 10,
+  }, new Date("2026-04-26T12:30:00.000Z"));
+  const delta = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:35:00.000Z"));
+
+  assert.equal(revived.cursor, 1);
+  assert.equal(delta.events.length, 0);
+  assert.equal(delta.completed, false);
+});
+
 test("ingestEvent records only events for registered watches and deduplicates deliveries", async () => {
   const watches = await service();
   await watches.registerWatch({ repo: "owner/repo", prNumber: 7 });
@@ -254,6 +283,40 @@ test("quiet period waits for unhandled non-approval review submissions", async (
   const completed = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:31:00.000Z"));
 
   assert.equal(withOpenReview.completed, false);
+  assert.equal(completed.completed, true);
+  assert.equal(completed.completionReason, "quiet_period");
+});
+
+test("quiet period ignores deleted review comments and dismissed reviews", async () => {
+  const watches = await service();
+  const start = new Date("2026-04-26T12:00:00.000Z");
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    quietMinutes: 10,
+  }, start);
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "review_comment",
+    action: "deleted",
+    author: "codex-review-bot",
+    body: "Deleted inline feedback.",
+    createdAt: "2026-04-26T12:01:00.000Z",
+  });
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "review_submitted",
+    action: "dismissed",
+    author: "codex-review-bot",
+    state: "changes_requested",
+    body: "Dismissed review summary.",
+    createdAt: "2026-04-26T12:02:00.000Z",
+  });
+
+  const completed = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:20:00.000Z"));
+
   assert.equal(completed.completed, true);
   assert.equal(completed.completionReason, "quiet_period");
 });

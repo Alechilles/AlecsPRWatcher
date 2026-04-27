@@ -46,7 +46,7 @@ export class WatchService {
         threadLabel: normalized.threadLabel ?? existing?.threadLabel,
         status: "active",
         policy,
-        cursor: existing?.cursor ?? 0,
+        cursor: startsNewCycle ? lastEventIdForWatch(db, id) : existing?.cursor ?? 0,
         createdAt: startsNewCycle ? timestamp : existing?.createdAt ?? timestamp,
         updatedAt: timestamp,
         lastActivityAt: startsNewCycle ? timestamp : existing?.lastActivityAt ?? timestamp,
@@ -377,6 +377,9 @@ function isInCurrentCycle(event: WatchEvent, watch: Watch): boolean {
 }
 
 function isFeedback(event: WatchEvent): boolean {
+  if (event.action === "deleted" || event.action === "dismissed") {
+    return false;
+  }
   if (event.kind === "issue_comment" && event.body?.trim() === CODEX_REVIEW_TRIGGER_COMMENT) {
     return false;
   }
@@ -400,6 +403,12 @@ function nextCursor(db: WatchDatabase, watch: Watch): number {
   }
 
   return cursor;
+}
+
+function lastEventIdForWatch(db: WatchDatabase, watchId: string): number {
+  return db.events
+    .filter((event) => event.watchId === watchId)
+    .reduce((cursor, event) => Math.max(cursor, event.id), 0);
 }
 
 function isThumbsUp(reaction?: string): boolean {
