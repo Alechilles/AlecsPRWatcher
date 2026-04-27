@@ -74,15 +74,15 @@ export class GitHubAppClient implements CodexReviewSignalClient {
   }
 
   async getPullRequest(repo: string, prNumber: number): Promise<PullRequestSnapshot> {
-    const response = await this.installationRequest<{ head: { sha: string } }>(
+    const response = await this.installationRequest<{ head: { sha: string }; updated_at?: string }>(
       repo,
       `/repos/${repo}/pulls/${prNumber}`,
     );
-    return { headSha: response.head.sha };
+    return { headSha: response.head.sha, updatedAt: response.updated_at };
   }
 
   async listIssueReactions(repo: string, prNumber: number): Promise<IssueReactionSnapshot[]> {
-    const response = await this.installationRequest<
+    const response = await this.installationPaginatedRequest<
       Array<{ content: string; user?: { login?: string }; created_at: string }>
     >(repo, `/repos/${repo}/issues/${prNumber}/reactions`);
     return response.map((reaction) => ({
@@ -93,7 +93,7 @@ export class GitHubAppClient implements CodexReviewSignalClient {
   }
 
   async listPullRequestReviews(repo: string, prNumber: number): Promise<PullRequestReviewSnapshot[]> {
-    const response = await this.installationRequest<
+    const response = await this.installationPaginatedRequest<
       Array<{ state: string; user?: { login?: string }; commit_id?: string; submitted_at?: string }>
     >(repo, `/repos/${repo}/pulls/${prNumber}/reviews`);
     return response.map((review) => ({
@@ -152,6 +152,24 @@ export class GitHubAppClient implements CodexReviewSignalClient {
     return body.length > 0 ? (JSON.parse(body) as T) : (undefined as T);
   }
 
+  private async installationPaginatedRequest<T extends unknown[]>(
+    repo: string,
+    path: string,
+    init: RequestInit = {},
+  ): Promise<T> {
+    const results: unknown[] = [];
+    let page = 1;
+    while (true) {
+      const pageResults = await this.installationRequest<T>(repo, withPagination(path, page), init);
+      results.push(...pageResults);
+      if (pageResults.length < 100) {
+        break;
+      }
+      page += 1;
+    }
+    return results as T;
+  }
+
   private async installationTokenForRepo(repo: string): Promise<string> {
     const installation = await this.githubRequest<RepositoryInstallation>(`/repos/${repo}/installation`);
     const cached = this.installationTokens.get(installation.id);
@@ -191,4 +209,11 @@ function base64Url(value: string | Buffer): string {
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replaceAll("=", "");
+}
+
+function withPagination(path: string, page: number): string {
+  const url = new URL(path, "https://api.github.com");
+  url.searchParams.set("per_page", "100");
+  url.searchParams.set("page", String(page));
+  return `${url.pathname}${url.search}`;
 }

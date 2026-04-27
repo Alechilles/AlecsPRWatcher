@@ -146,17 +146,21 @@ export class WatchService {
     ]);
     const timestamp = now.toISOString();
     const headChanged = current.lastObservedHeadSha !== pullRequest.headSha;
-    const observedAt = headChanged ? timestamp : current.lastObservedHeadAt ?? timestamp;
+    const observedAt = headChanged
+      ? pullRequest.updatedAt ?? current.lastObservedHeadAt ?? current.createdAt
+      : current.lastObservedHeadAt ?? timestamp;
     const codexLogins = codexActorLogins(current);
     const codexReview = reviews.find(
       (review) => review.commitSha === pullRequest.headSha && isCodexActor(review.author, codexLogins),
     );
-    const codexReaction = reactions.find(
-      (reaction) =>
+    const codexReactions = reactions
+      .filter((reaction) =>
         isCodexActor(reaction.userLogin, codexLogins) &&
         new Date(reaction.createdAt).getTime() >= new Date(observedAt).getTime() &&
         (reaction.content === "eyes" || isThumbsUp(reaction.content)),
-    );
+      )
+      .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+    const codexReaction = codexReactions.find((reaction) => isThumbsUp(reaction.content)) ?? codexReactions[0];
     const thumbsUp = codexReaction && isThumbsUp(codexReaction.content);
     const seenAt = codexReaction?.createdAt ?? codexReview?.submittedAt ?? timestamp;
 
@@ -211,7 +215,20 @@ export class WatchService {
     });
 
     if (reserved) {
-      await github.createIssueComment(current.repo, current.prNumber, CODEX_REVIEW_TRIGGER_COMMENT);
+      try {
+        await github.createIssueComment(current.repo, current.prNumber, CODEX_REVIEW_TRIGGER_COMMENT);
+      } catch (error) {
+        await this.store.update((db) => {
+          const watch = db.watches[id];
+          if (watch?.lastReviewRequestHeadSha === pullRequest.headSha && watch.lastReviewRequestAt === timestamp) {
+            watch.lastReviewRequestHeadSha = undefined;
+            watch.lastReviewRequestAt = undefined;
+            watch.updatedAt = new Date().toISOString();
+          }
+          return undefined;
+        });
+        throw error;
+      }
     }
 
     return this.store.update((db) => {

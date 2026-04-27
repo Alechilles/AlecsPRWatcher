@@ -111,6 +111,7 @@ export interface ReviewDelta {
 
 export interface PullRequestSnapshot {
   headSha: string;
+  updatedAt?: string;
 }
 
 export interface IssueReactionSnapshot {
