@@ -85,6 +85,9 @@ export function toIngestEvent(
   }
 
   if (eventName === "issue_comment") {
+    if (payload.action !== "created") {
+      return undefined;
+    }
     return {
       repo,
       prNumber: numericPr,

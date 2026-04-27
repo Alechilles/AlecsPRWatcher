@@ -341,7 +341,7 @@ function updateCompletion(db: WatchDatabase, watch: Watch, now: Date): void {
 }
 
 function completionReason(db: WatchDatabase, watch: Watch, now: Date): CompletionReason | undefined {
-  const events = db.events.filter((event) => event.watchId === watch.id);
+  const events = db.events.filter((event) => event.watchId === watch.id && isInCurrentCycle(event, watch));
   const botEvents = events.filter((event) => equalsLogin(event.author, watch.policy.botLogin));
 
   if (
@@ -370,6 +370,10 @@ function completionReason(db: WatchDatabase, watch: Watch, now: Date): Completio
   }
 
   return undefined;
+}
+
+function isInCurrentCycle(event: WatchEvent, watch: Watch): boolean {
+  return new Date(event.createdAt).getTime() >= new Date(watch.createdAt).getTime();
 }
 
 function isFeedback(event: WatchEvent): boolean {

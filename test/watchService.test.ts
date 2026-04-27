@@ -34,17 +34,28 @@ test("registerWatch starts a fresh lifecycle when reviving a completed watch", a
     repo: "owner/repo",
     prNumber: 7,
     quietMinutes: 10,
+    botLogin: "codex-review-bot",
   }, new Date("2026-04-26T12:00:00.000Z"));
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "review_submitted",
+    author: "codex-review-bot",
+    state: "approved",
+    createdAt: "2026-04-26T12:01:00.000Z",
+  });
   const completed = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:15:00.000Z"));
 
   const revived = await watches.registerWatch({
     repo: "owner/repo",
     prNumber: 7,
     quietMinutes: 10,
+    botLogin: "codex-review-bot",
   }, new Date("2026-04-26T12:30:00.000Z"));
   const delta = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:35:00.000Z"));
 
   assert.equal(completed.completed, true);
+  assert.equal(completed.completionReason, "bot_approved");
   assert.equal(revived.status, "active");
   assert.equal(revived.createdAt, "2026-04-26T12:30:00.000Z");
   assert.equal(revived.lastActivityAt, "2026-04-26T12:30:00.000Z");

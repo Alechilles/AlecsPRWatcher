@@ -76,8 +76,28 @@ test("toIngestEvent parses thumbs-up reactions on PR issue payloads", () => {
   assert.equal(event?.author, "codex-review-bot");
 });
 
+test("toIngestEvent ignores non-created issue comments", () => {
+  const event = toIngestEvent("issue_comment", "delivery-4", {
+    action: "edited",
+    repository: { full_name: "Owner/Repo" },
+    issue: {
+      number: 42,
+      pull_request: { url: "https://api.github.com/repos/Owner/Repo/pulls/42" },
+    },
+    comment: {
+      node_id: "comment_node",
+      user: { login: "reviewer" },
+      body: "Edited existing feedback.",
+      html_url: "https://github.com/Owner/Repo/pull/42#issuecomment-1",
+      created_at: "2026-04-26T12:03:00Z",
+    },
+  });
+
+  assert.equal(event, undefined);
+});
+
 test("toIngestEvent ignores unsupported webhook events", () => {
-  const event = toIngestEvent("pull_request", "delivery-4", {
+  const event = toIngestEvent("pull_request", "delivery-5", {
     action: "synchronize",
     repository: { full_name: "Owner/Repo" },
     pull_request: { number: 42 },
