@@ -207,3 +207,27 @@ test("refreshCodexReviewState completes when Codex gives thumbs up after seeing 
   assert.equal(watch.status, "completed");
   assert.equal(watch.completionReason, "bot_thumbs_up");
 });
+
+test("refreshCodexReviewState completes when polling finds an approved Codex review", async () => {
+  const watches = await service();
+  const github = new FakeCodexClient();
+  github.reviews = [
+    {
+      state: "APPROVED",
+      author: "chatgpt-codex-connector[bot]",
+      commitSha: "sha-1",
+      submittedAt: "2026-04-27T12:02:00.000Z",
+    },
+  ];
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    completeOnApproval: true,
+  }, new Date("2026-04-27T12:00:00.000Z"));
+
+  const watch = await watches.refreshCodexReviewState("owner/repo", github, 7, new Date("2026-04-27T12:03:00.000Z"));
+
+  assert.equal(github.comments.length, 0);
+  assert.equal(watch.status, "completed");
+  assert.equal(watch.completionReason, "bot_approved");
+});

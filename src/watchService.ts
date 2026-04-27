@@ -175,6 +175,7 @@ export class WatchService {
       .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
     const codexReaction = codexReactions.find((reaction) => isThumbsUp(reaction.content)) ?? codexReactions[0];
     const thumbsUp = codexReaction && isThumbsUp(codexReaction.content);
+    const approved = codexReview?.state.toLowerCase() === "approved";
     const seenAt = codexReaction?.createdAt ?? codexReview?.submittedAt ?? timestamp;
 
     if (codexReview || codexReaction) {
@@ -188,7 +189,11 @@ export class WatchService {
         watch.codexReviewSeenHeadSha = pullRequest.headSha;
         watch.codexReviewSeenAt = seenAt;
         watch.updatedAt = timestamp;
-        if (thumbsUp && watch.policy.completeOnThumbsUp && watch.status === "active") {
+        if (approved && watch.policy.completeOnApproval && watch.status === "active") {
+          watch.status = "completed";
+          watch.completedAt = timestamp;
+          watch.completionReason = "bot_approved";
+        } else if (thumbsUp && watch.policy.completeOnThumbsUp && watch.status === "active") {
           watch.status = "completed";
           watch.completedAt = timestamp;
           watch.completionReason = "bot_thumbs_up";
@@ -370,12 +375,36 @@ function completionReason(db: WatchDatabase, watch: Watch, now: Date): Completio
   }
 
   const quietMinutes = minutesBetween(new Date(watch.lastActivityAt), now);
-  const openFeedback = events.some((event) => isFeedback(event) && !event.handledAt);
+  const openFeedback = hasOpenFeedback(events);
   if (watch.policy.completeOnQuiet && quietMinutes >= watch.policy.quietMinutes && !openFeedback) {
     return "quiet_period";
   }
 
   return undefined;
+}
+
+function hasOpenFeedback(events: WatchEvent[]): boolean {
+  const latestThreadEvents = new Map<string, WatchEvent>();
+  for (const event of events) {
+    if (event.kind !== "review_thread") {
+      if (isFeedback(event) && !event.handledAt) {
+        return true;
+      }
+      continue;
+    }
+
+    const key = reviewThreadKey(event);
+    const existing = latestThreadEvents.get(key);
+    if (!existing || event.id > existing.id) {
+      latestThreadEvents.set(key, event);
+    }
+  }
+
+  return Array.from(latestThreadEvents.values()).some((event) => isFeedback(event) && !event.handledAt);
+}
+
+function reviewThreadKey(event: WatchEvent): string {
+  return event.githubNodeId ?? event.url ?? String(event.id);
 }
 
 function isInCurrentCycle(event: WatchEvent, watch: Watch): boolean {
