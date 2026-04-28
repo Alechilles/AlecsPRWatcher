@@ -1,8 +1,9 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { GitHubAppClient } from "./githubAppAuth.js";
+import { GitHubAppClient, type GitHubAppInfo, type GitHubAppInstallation } from "./githubAppAuth.js";
 import { parseGitHubWebhook, verifyGitHubSignature } from "./githubWebhook.js";
+import type { CodexReviewSignalClient } from "./types.js";
 import { WatchService } from "./watchService.js";
 
 const DEFAULT_PORT = 3797;
@@ -11,13 +12,19 @@ export interface ServerOptions {
   port?: number;
   webhookSecret?: string;
   service?: WatchService;
+  githubApp?: ServerGitHubClient;
+}
+
+export interface ServerGitHubClient extends CodexReviewSignalClient {
+  getApp(): Promise<GitHubAppInfo>;
+  listInstallations(): Promise<GitHubAppInstallation[]>;
 }
 
 export async function startServer(options: ServerOptions = {}): Promise<Server> {
   const port = options.port ?? Number(process.env.PORT ?? DEFAULT_PORT);
   const webhookSecret = options.webhookSecret ?? process.env.GITHUB_WEBHOOK_SECRET;
   const apiToken = process.env.WATCHER_API_TOKEN;
-  const githubApp = GitHubAppClient.fromEnvironment();
+  const githubApp = options.githubApp ?? GitHubAppClient.fromEnvironment();
   const service = options.service ?? new WatchService();
 
   const server = createServer(async (request, response) => {
@@ -83,7 +90,7 @@ async function handleApiRequest(
   request: IncomingMessage,
   response: ServerResponse,
   service: WatchService,
-  githubApp: GitHubAppClient | undefined,
+  githubApp: ServerGitHubClient | undefined,
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://localhost");
 
@@ -133,7 +140,11 @@ async function handleApiRequest(
       return;
     }
     if (githubApp) {
-      await service.refreshCodexReviewState(repo, githubApp, prNumber);
+      try {
+        await service.refreshCodexReviewState(repo, githubApp, prNumber);
+      } catch {
+        // Serve webhook-ingested feedback even when GitHub polling is temporarily unavailable.
+      }
     }
     sendJson(response, 200, await service.getDelta(repo, prNumber));
     return;

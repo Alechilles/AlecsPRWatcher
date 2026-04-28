@@ -409,9 +409,18 @@ function hasActiveBotApproval(events: WatchEvent[]): boolean {
     }
   }
 
-  return Array.from(latestReviewEvents.values()).some(
-    (event) => event.action !== "dismissed" && event.state?.toLowerCase() === "approved",
-  );
+  const latestActiveReview = Array.from(latestReviewEvents.values())
+    .filter((event) => event.action !== "dismissed")
+    .sort((left, right) => {
+      if (isFresherEvent(left, right)) {
+        return -1;
+      }
+      if (isFresherEvent(right, left)) {
+        return 1;
+      }
+      return 0;
+    })[0];
+  return latestActiveReview?.state?.toLowerCase() === "approved";
 }
 
 function hasOpenFeedback(events: WatchEvent[]): boolean {

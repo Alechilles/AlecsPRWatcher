@@ -251,6 +251,47 @@ test("dismissed bot approval reopens approval-completed watch", async () => {
   assert.equal(dismissed.watch.completionReason, undefined);
 });
 
+test("newer blocking bot review reopens approval-completed watch", async () => {
+  const watches = await service();
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    botLogin: "codex-review-bot",
+    completeOnQuiet: false,
+  }, new Date("2026-04-26T12:00:00.000Z"));
+
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    githubNodeId: "review-1",
+    kind: "review_submitted",
+    action: "submitted",
+    author: "codex-review-bot",
+    state: "approved",
+    createdAt: "2026-04-26T12:01:00.000Z",
+  });
+  const approved = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:01:30.000Z"));
+
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    githubNodeId: "review-2",
+    kind: "review_submitted",
+    action: "submitted",
+    author: "codex-review-bot",
+    state: "changes_requested",
+    body: "New blocking review.",
+    createdAt: "2026-04-26T12:02:00.000Z",
+  });
+  const blocked = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:02:30.000Z"));
+
+  assert.equal(approved.completed, true);
+  assert.equal(approved.completionReason, "bot_approved");
+  assert.equal(blocked.completed, false);
+  assert.equal(blocked.watch.status, "active");
+  assert.equal(blocked.watch.completionReason, undefined);
+});
+
 test("deleted thumbs-up reactions do not complete the watch", async () => {
   const watches = await service();
   await watches.registerWatch({
