@@ -171,7 +171,7 @@ export class WatchService {
         isAtOrAfter(review.submittedAt, current.createdAt),
       )
       .sort((left, right) => timestampMillis(right.submittedAt) - timestampMillis(left.submittedAt));
-    const codexReview = codexReviews.find((review) => review.state.toLowerCase() === "approved") ?? codexReviews[0];
+    const codexReview = codexReviews[0];
     const codexReactions = reactions
       .filter((reaction) =>
         isCodexActor(reaction.userLogin, codexLogins) &&
@@ -347,7 +347,11 @@ function resolveWatchId(watchIdOrRepo: string, prNumber?: number): string {
 function updateCompletion(db: WatchDatabase, watch: Watch, now: Date): void {
   if (watch.status !== "active") {
     const reason = completionReason(db, watch, now);
-    if (watch.status !== "completed" || watch.completionReason !== "bot_approved" || reason === "bot_approved") {
+    if (
+      watch.status !== "completed" ||
+      !isLifecycleCompletion(watch.completionReason) ||
+      reason === watch.completionReason
+    ) {
       return;
     }
     watch.status = "active";
@@ -375,10 +379,7 @@ function completionReason(db: WatchDatabase, watch: Watch, now: Date): Completio
     return "bot_approved";
   }
 
-  if (
-    watch.policy.completeOnThumbsUp &&
-    botEvents.some((event) => event.kind === "reaction" && event.action === "created" && isThumbsUp(event.reaction))
-  ) {
+  if (watch.policy.completeOnThumbsUp && hasActiveBotThumbsUp(botEvents)) {
     return "bot_thumbs_up";
   }
 
@@ -394,6 +395,10 @@ function completionReason(db: WatchDatabase, watch: Watch, now: Date): Completio
   }
 
   return undefined;
+}
+
+function isLifecycleCompletion(reason: CompletionReason | undefined): boolean {
+  return reason === "bot_approved" || reason === "bot_thumbs_up";
 }
 
 function hasActiveBotApproval(events: WatchEvent[]): boolean {
@@ -421,6 +426,22 @@ function hasActiveBotApproval(events: WatchEvent[]): boolean {
       return 0;
     })[0];
   return latestActiveReview?.state?.toLowerCase() === "approved";
+}
+
+function hasActiveBotThumbsUp(events: WatchEvent[]): boolean {
+  const latestReactionEvents = new Map<string, WatchEvent>();
+  for (const event of events) {
+    if (event.kind !== "reaction" || !isThumbsUp(event.reaction)) {
+      continue;
+    }
+    const key = feedbackEventKey(event);
+    const existing = latestReactionEvents.get(key);
+    if (!existing || isFresherEvent(event, existing)) {
+      latestReactionEvents.set(key, event);
+    }
+  }
+
+  return Array.from(latestReactionEvents.values()).some((event) => event.action === "created");
 }
 
 function hasOpenFeedback(events: WatchEvent[]): boolean {

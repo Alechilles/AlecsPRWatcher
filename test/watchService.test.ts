@@ -315,6 +315,46 @@ test("deleted thumbs-up reactions do not complete the watch", async () => {
   assert.equal(delta.watch.status, "active");
 });
 
+test("deleted bot thumbs-up reopens thumbs-up-completed watch", async () => {
+  const watches = await service();
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    botLogin: "codex-review-bot",
+    completeOnQuiet: false,
+  }, new Date("2026-04-26T12:00:00.000Z"));
+
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    githubNodeId: "reaction-1",
+    kind: "reaction",
+    action: "created",
+    author: "codex-review-bot",
+    reaction: "+1",
+    createdAt: "2026-04-26T12:01:00.000Z",
+  });
+  const completed = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:01:30.000Z"));
+
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    githubNodeId: "reaction-1",
+    kind: "reaction",
+    action: "deleted",
+    author: "codex-review-bot",
+    reaction: "+1",
+    createdAt: "2026-04-26T12:02:00.000Z",
+  });
+  const deleted = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:02:30.000Z"));
+
+  assert.equal(completed.completed, true);
+  assert.equal(completed.completionReason, "bot_thumbs_up");
+  assert.equal(deleted.completed, false);
+  assert.equal(deleted.watch.status, "active");
+  assert.equal(deleted.watch.completionReason, undefined);
+});
+
 test("created thumbs-up reactions complete the watch", async () => {
   const watches = await service();
   await watches.registerWatch({
