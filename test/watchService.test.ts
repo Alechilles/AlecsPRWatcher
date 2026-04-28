@@ -92,6 +92,34 @@ test("registerWatch hides stale unhandled events when reviving a completed watch
   assert.equal(delta.completed, false);
 });
 
+test("getDelta hides delayed events from a previous watch cycle", async () => {
+  const watches = await service();
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    timeoutMinutes: 10,
+  }, new Date("2026-04-26T12:00:00.000Z"));
+  await watches.setStatus("owner/repo", "completed", 7, new Date("2026-04-26T12:15:00.000Z"));
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    timeoutMinutes: 10,
+  }, new Date("2026-04-26T12:30:00.000Z"));
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "review_comment",
+    author: "codex-review-bot",
+    body: "Delayed feedback from the previous cycle.",
+    createdAt: "2026-04-26T12:10:00.000Z",
+  });
+
+  const delta = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:35:00.000Z"));
+
+  assert.equal(delta.events.length, 0);
+  assert.equal(delta.completed, false);
+});
+
 test("ingestEvent records only events for registered watches and deduplicates deliveries", async () => {
   const watches = await service();
   await watches.registerWatch({ repo: "owner/repo", prNumber: 7 });

@@ -117,7 +117,7 @@ export function toIngestEvent(
   }
 
   if (eventName === "issue_comment") {
-    if (payload.action !== "created") {
+    if (payload.action !== "created" && payload.action !== "deleted") {
       return undefined;
     }
     return {
@@ -131,7 +131,7 @@ export function toIngestEvent(
       body: payload.comment?.body,
       url: payload.comment?.html_url,
       rawEventName: eventName,
-      createdAt: payload.comment?.created_at,
+      createdAt: payload.action === "created" ? payload.comment?.created_at : payload.comment?.updated_at,
     };
   }
 

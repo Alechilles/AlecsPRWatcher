@@ -3,6 +3,31 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { GitHubAppClient } from "../src/githubAppAuth.js";
 
+test("GitHubAppClient.fromEnvironment ignores partial app configuration", () => {
+  const previousAppId = process.env.GITHUB_APP_ID;
+  const previousPrivateKeyPath = process.env.GITHUB_APP_PRIVATE_KEY_PATH;
+  const previousPrivateKey = process.env.GITHUB_APP_PRIVATE_KEY;
+
+  try {
+    process.env.GITHUB_APP_ID = "123";
+    delete process.env.GITHUB_APP_PRIVATE_KEY_PATH;
+    delete process.env.GITHUB_APP_PRIVATE_KEY;
+    assert.equal(GitHubAppClient.fromEnvironment(), undefined);
+
+    delete process.env.GITHUB_APP_ID;
+    process.env.GITHUB_APP_PRIVATE_KEY_PATH = "C:/missing/private-key.pem";
+    assert.equal(GitHubAppClient.fromEnvironment(), undefined);
+
+    process.env.GITHUB_APP_ID = "123";
+    const client = GitHubAppClient.fromEnvironment();
+    assert.ok(client instanceof GitHubAppClient);
+  } finally {
+    restoreEnv("GITHUB_APP_ID", previousAppId);
+    restoreEnv("GITHUB_APP_PRIVATE_KEY_PATH", previousPrivateKeyPath);
+    restoreEnv("GITHUB_APP_PRIVATE_KEY", previousPrivateKey);
+  }
+});
+
 test("GitHubAppClient paginates pull request reviews", async () => {
   const originalFetch = globalThis.fetch;
   const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -122,4 +147,12 @@ function jsonResponse(body: unknown, status = 200): Response {
     status,
     headers: { "content-type": "application/json" },
   });
+}
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+  process.env[name] = value;
 }

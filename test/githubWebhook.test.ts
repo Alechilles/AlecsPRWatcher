@@ -156,7 +156,30 @@ test("toIngestEvent parses thumbs-up reactions on PR issue payloads", () => {
   assert.equal(event?.author, "codex-review-bot");
 });
 
-test("toIngestEvent ignores non-created issue comments", () => {
+test("toIngestEvent parses deleted issue comments", () => {
+  const event = toIngestEvent("issue_comment", "delivery-8", {
+    action: "deleted",
+    repository: { full_name: "Owner/Repo" },
+    issue: {
+      number: 42,
+      pull_request: { url: "https://api.github.com/repos/Owner/Repo/pulls/42" },
+    },
+    comment: {
+      node_id: "comment_node",
+      user: { login: "reviewer" },
+      body: "Removed feedback.",
+      html_url: "https://github.com/Owner/Repo/pull/42#issuecomment-1",
+      created_at: "2026-04-26T12:03:00Z",
+      updated_at: "2026-04-26T12:04:00Z",
+    },
+  });
+
+  assert.equal(event?.kind, "issue_comment");
+  assert.equal(event?.action, "deleted");
+  assert.equal(event?.createdAt, "2026-04-26T12:04:00Z");
+});
+
+test("toIngestEvent ignores edited issue comments", () => {
   const event = toIngestEvent("issue_comment", "delivery-8", {
     action: "edited",
     repository: { full_name: "Owner/Repo" },

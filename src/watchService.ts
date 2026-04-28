@@ -99,6 +99,10 @@ export class WatchService {
         db.deliveries[input.githubDeliveryId] = event.id;
       }
 
+      if (!isInCurrentCycle(event, watch)) {
+        return structuredClone(event);
+      }
+
       if (event.kind === "head_changed" && event.commitSha) {
         watch.lastObservedHeadSha = event.commitSha;
         watch.lastObservedHeadAt = now;
@@ -120,6 +124,7 @@ export class WatchService {
       updateCompletion(db, watch, now);
       const events = db.events
         .filter((event) => event.watchId === id)
+        .filter((event) => isInCurrentCycle(event, watch))
         .filter((event) => event.id > watch.cursor)
         .filter((event) => !event.handledAt)
         .sort((left, right) => left.id - right.id);

@@ -55,11 +55,11 @@ export class GitHubAppClient implements CodexReviewSignalClient {
     const appId = process.env.GITHUB_APP_ID;
     const privateKeyPath = process.env.GITHUB_APP_PRIVATE_KEY_PATH;
     const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
-    if (!appId && !privateKeyPath && !privateKey) {
+    if (!appId || (!privateKeyPath && !privateKey)) {
       return undefined;
     }
     return new GitHubAppClient({
-      appId: appId ?? "",
+      appId,
       privateKey,
       privateKeyPath,
     });
