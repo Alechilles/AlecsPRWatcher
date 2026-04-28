@@ -161,7 +161,7 @@ export class WatchService {
     const observedAt = headChanged
       ? current.lastObservedHeadSha === undefined
         ? current.createdAt
-        : timestamp
+        : current.lastObservedHeadAt ?? current.createdAt
       : current.lastObservedHeadAt ?? timestamp;
     const codexLogins = codexActorLogins(current);
     const codexReviews = reviews
