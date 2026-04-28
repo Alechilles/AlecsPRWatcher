@@ -47,7 +47,11 @@ export class RefreshingWatchClient implements WatchClient {
 
   async getDelta(watchIdOrRepo: string, prNumber?: number): Promise<ReviewDelta> {
     if (this.github) {
-      await this.service.refreshCodexReviewState(watchIdOrRepo, this.github, prNumber);
+      try {
+        await this.service.refreshCodexReviewState(watchIdOrRepo, this.github, prNumber);
+      } catch {
+        // Webhook-ingested feedback is still useful when GitHub polling is temporarily unavailable.
+      }
     }
     return this.service.getDelta(watchIdOrRepo, prNumber);
   }

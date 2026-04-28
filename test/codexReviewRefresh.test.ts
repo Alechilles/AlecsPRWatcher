@@ -9,12 +9,14 @@ import { WatchService } from "../src/watchService.js";
 
 class FakeCodexClient implements CodexReviewSignalClient {
   headSha = "sha-1";
+  pullRequestCount = 0;
   reactions: Awaited<ReturnType<CodexReviewSignalClient["listIssueReactions"]>> = [];
   reviews: Awaited<ReturnType<CodexReviewSignalClient["listPullRequestReviews"]>> = [];
   comments: string[] = [];
   failNextComment = false;
 
   async getPullRequest() {
+    this.pullRequestCount += 1;
     return { headSha: this.headSha };
   }
 
@@ -130,6 +132,23 @@ test("refreshCodexReviewState does not request review after watch completes duri
   assert.deepEqual(comments, []);
   assert.equal(watch.status, "completed");
   assert.equal(watch.lastReviewRequestHeadSha, undefined);
+});
+
+test("refreshCodexReviewState recomputes completion before requesting review", async () => {
+  const watches = await service();
+  const github = new FakeCodexClient();
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    quietMinutes: 10,
+  }, new Date("2026-04-27T12:00:00.000Z"));
+
+  const watch = await watches.refreshCodexReviewState("owner/repo", github, 7, new Date("2026-04-27T12:20:00.000Z"));
+
+  assert.equal(github.pullRequestCount, 0);
+  assert.deepEqual(github.comments, []);
+  assert.equal(watch.status, "completed");
+  assert.equal(watch.completionReason, "quiet_period");
 });
 
 test("refreshCodexReviewState treats Codex eyes reaction as seen", async () => {

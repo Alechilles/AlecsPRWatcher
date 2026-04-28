@@ -144,6 +144,7 @@ export class WatchService {
       if (!watch) {
         throw new Error(`No watch registered for ${id}`);
       }
+      updateCompletion(db, watch, now);
       return structuredClone(watch);
     });
     if (current.status !== "active") {
@@ -226,6 +227,7 @@ export class WatchService {
       if (!watch) {
         throw new Error(`No watch registered for ${id}`);
       }
+      updateCompletion(db, watch, new Date(timestamp));
       if (watch.status !== "active") {
         return false;
       }
