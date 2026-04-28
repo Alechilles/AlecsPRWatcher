@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { GitHubAppClient } from "./githubAppAuth.js";
@@ -13,7 +13,7 @@ export interface ServerOptions {
   service?: WatchService;
 }
 
-export async function startServer(options: ServerOptions = {}): Promise<void> {
+export async function startServer(options: ServerOptions = {}): Promise<Server> {
   const port = options.port ?? Number(process.env.PORT ?? DEFAULT_PORT);
   const webhookSecret = options.webhookSecret ?? process.env.GITHUB_WEBHOOK_SECRET;
   const apiToken = process.env.WATCHER_API_TOKEN;
@@ -73,7 +73,10 @@ export async function startServer(options: ServerOptions = {}): Promise<void> {
     server.listen(port, resolve);
   });
 
-  console.error(`codex-pr-watcher listening on http://127.0.0.1:${port}`);
+  const address = server.address();
+  const resolvedPort = typeof address === "object" && address ? address.port : port;
+  console.error(`codex-pr-watcher listening on http://127.0.0.1:${resolvedPort}`);
+  return server;
 }
 
 async function handleApiRequest(
@@ -124,10 +127,15 @@ async function handleApiRequest(
       sendJson(response, 400, { ok: false, error: "repo query parameter is required" });
       return;
     }
-    if (githubApp) {
-      await service.refreshCodexReviewState(repo, githubApp, pr ? Number(pr) : undefined);
+    const prNumber = parseOptionalPrNumber(pr);
+    if (pr !== null && prNumber === undefined) {
+      sendJson(response, 400, { ok: false, error: "pr query parameter must be a positive integer" });
+      return;
     }
-    sendJson(response, 200, await service.getDelta(repo, pr ? Number(pr) : undefined));
+    if (githubApp) {
+      await service.refreshCodexReviewState(repo, githubApp, prNumber);
+    }
+    sendJson(response, 200, await service.getDelta(repo, prNumber));
     return;
   }
 
@@ -160,6 +168,14 @@ function sendJson(response: ServerResponse, statusCode: number, body: unknown): 
   response.statusCode = statusCode;
   response.setHeader("content-type", "application/json; charset=utf-8");
   response.end(`${JSON.stringify(body)}\n`);
+}
+
+export function parseOptionalPrNumber(value: string | null): number | undefined {
+  if (value === null) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function isAuthorized(request: IncomingMessage, token: string): boolean {

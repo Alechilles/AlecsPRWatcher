@@ -344,7 +344,13 @@ function resolveWatchId(watchIdOrRepo: string, prNumber?: number): string {
 
 function updateCompletion(db: WatchDatabase, watch: Watch, now: Date): void {
   if (watch.status !== "active") {
-    return;
+    const reason = completionReason(db, watch, now);
+    if (watch.status !== "completed" || watch.completionReason !== "bot_approved" || reason === "bot_approved") {
+      return;
+    }
+    watch.status = "active";
+    watch.completedAt = undefined;
+    watch.completionReason = undefined;
   }
 
   const reason = completionReason(db, watch, now);
@@ -363,10 +369,7 @@ function completionReason(db: WatchDatabase, watch: Watch, now: Date): Completio
   const events = db.events.filter((event) => event.watchId === watch.id && isInCurrentCycle(event, watch));
   const botEvents = events.filter((event) => equalsLogin(event.author, watch.policy.botLogin));
 
-  if (
-    watch.policy.completeOnApproval &&
-    botEvents.some((event) => event.kind === "review_submitted" && event.state?.toLowerCase() === "approved")
-  ) {
+  if (watch.policy.completeOnApproval && hasActiveBotApproval(botEvents)) {
     return "bot_approved";
   }
 
@@ -389,6 +392,24 @@ function completionReason(db: WatchDatabase, watch: Watch, now: Date): Completio
   }
 
   return undefined;
+}
+
+function hasActiveBotApproval(events: WatchEvent[]): boolean {
+  const latestReviewEvents = new Map<string, WatchEvent>();
+  for (const event of events) {
+    if (event.kind !== "review_submitted") {
+      continue;
+    }
+    const key = feedbackEventKey(event);
+    const existing = latestReviewEvents.get(key);
+    if (!existing || isFresherEvent(event, existing)) {
+      latestReviewEvents.set(key, event);
+    }
+  }
+
+  return Array.from(latestReviewEvents.values()).some(
+    (event) => event.action !== "dismissed" && event.state?.toLowerCase() === "approved",
+  );
 }
 
 function hasOpenFeedback(events: WatchEvent[]): boolean {
