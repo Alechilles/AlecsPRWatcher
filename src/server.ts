@@ -7,6 +7,7 @@ import type { CodexReviewSignalClient } from "./types.js";
 import { WatchService } from "./watchService.js";
 
 const DEFAULT_PORT = 3797;
+const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 
 export interface ServerOptions {
   port?: number;
@@ -72,6 +73,10 @@ export async function startServer(options: ServerOptions = {}): Promise<Server> 
 
       sendJson(response, 404, { ok: false, error: "not found" });
     } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        sendJson(response, 413, { ok: false, error: "request body is too large" });
+        return;
+      }
       sendJson(response, 500, { ok: false, error: (error as Error).message });
     }
   });
@@ -169,10 +174,22 @@ async function handleApiRequest(
 
 async function readRequestBody(request: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
+  let totalBytes = 0;
   for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buffer.byteLength;
+    if (totalBytes > MAX_REQUEST_BODY_BYTES) {
+      throw new RequestBodyTooLargeError();
+    }
+    chunks.push(buffer);
   }
   return Buffer.concat(chunks).toString("utf8");
+}
+
+class RequestBodyTooLargeError extends Error {
+  constructor() {
+    super("request body is too large");
+  }
 }
 
 function sendJson(response: ServerResponse, statusCode: number, body: unknown): void {

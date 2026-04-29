@@ -121,6 +121,48 @@ test("delta API returns stored events when GitHub refresh fails", async () => {
   }
 });
 
+test("API rejects oversized request bodies", async () => {
+  const previousToken = process.env.WATCHER_API_TOKEN;
+  process.env.WATCHER_API_TOKEN = "secret";
+  const dir = await mkdtemp(join(tmpdir(), "codex-pr-watcher-"));
+  const server = await startServer({
+    port: 0,
+    service: new WatchService(new StateStore(join(dir, "watcher.json"))),
+  });
+
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/register`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer secret",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        repo: "owner/repo",
+        prNumber: 7,
+        workspace: "x".repeat(1024 * 1024),
+      }),
+    });
+    const body = await response.json() as { error?: string };
+
+    assert.equal(response.status, 413);
+    assert.equal(body.error, "request body is too large");
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
+    restoreEnv("WATCHER_API_TOKEN", previousToken);
+  }
+});
+
 function restoreEnv(name: string, value: string | undefined): void {
   if (value === undefined) {
     delete process.env[name];
