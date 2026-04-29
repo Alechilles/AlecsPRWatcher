@@ -379,12 +379,13 @@ function updateCompletion(db: WatchDatabase, watch: Watch, now: Date): void {
 function completionReason(db: WatchDatabase, watch: Watch, now: Date): CompletionReason | undefined {
   const events = db.events.filter((event) => event.watchId === watch.id && isInCurrentCycle(event, watch));
   const botEvents = events.filter((event) => equalsLogin(event.author, watch.policy.botLogin));
+  const openFeedback = hasOpenFeedback(events);
 
-  if (watch.policy.completeOnApproval && hasActiveBotApproval(botEvents)) {
+  if (!openFeedback && watch.policy.completeOnApproval && hasActiveBotApproval(botEvents)) {
     return "bot_approved";
   }
 
-  if (watch.policy.completeOnThumbsUp && hasActiveBotThumbsUp(botEvents)) {
+  if (!openFeedback && watch.policy.completeOnThumbsUp && hasActiveBotThumbsUp(botEvents)) {
     return "bot_thumbs_up";
   }
 
@@ -394,7 +395,6 @@ function completionReason(db: WatchDatabase, watch: Watch, now: Date): Completio
   }
 
   const quietMinutes = minutesBetween(new Date(watch.lastActivityAt), now);
-  const openFeedback = hasOpenFeedback(events);
   if (watch.policy.completeOnQuiet && quietMinutes >= watch.policy.quietMinutes && !openFeedback) {
     return "quiet_period";
   }

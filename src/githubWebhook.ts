@@ -117,7 +117,7 @@ export function toIngestEvent(
   }
 
   if (eventName === "issue_comment") {
-    if (payload.action !== "created" && payload.action !== "deleted") {
+    if (payload.action !== "created" && payload.action !== "edited" && payload.action !== "deleted") {
       return undefined;
     }
     return {

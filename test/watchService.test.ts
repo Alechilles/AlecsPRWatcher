@@ -405,6 +405,76 @@ test("created thumbs-up reactions complete the watch", async () => {
   assert.equal(delta.completionReason, "bot_thumbs_up");
 });
 
+test("bot approval does not complete while feedback remains open", async () => {
+  const watches = await service();
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    botLogin: "codex-review-bot",
+    completeOnQuiet: false,
+  }, new Date("2026-04-26T12:00:00.000Z"));
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "review_comment",
+    action: "created",
+    author: "codex-review-bot",
+    body: "Please adjust this.",
+    createdAt: "2026-04-26T12:01:00.000Z",
+  });
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "review_submitted",
+    action: "submitted",
+    author: "codex-review-bot",
+    state: "approved",
+    createdAt: "2026-04-26T12:02:00.000Z",
+  });
+
+  const delta = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:03:00.000Z"));
+
+  assert.equal(delta.completed, false);
+  assert.equal(delta.watch.status, "active");
+  assert.equal(delta.events.length, 2);
+  assert.equal(delta.watch.completionReason, undefined);
+});
+
+test("bot thumbs-up does not complete while feedback remains open", async () => {
+  const watches = await service();
+  await watches.registerWatch({
+    repo: "owner/repo",
+    prNumber: 7,
+    botLogin: "codex-review-bot",
+    completeOnQuiet: false,
+  }, new Date("2026-04-26T12:00:00.000Z"));
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "review_comment",
+    action: "created",
+    author: "codex-review-bot",
+    body: "Please adjust this.",
+    createdAt: "2026-04-26T12:01:00.000Z",
+  });
+  await watches.ingestEvent({
+    repo: "owner/repo",
+    prNumber: 7,
+    kind: "reaction",
+    action: "created",
+    author: "codex-review-bot",
+    reaction: "+1",
+    createdAt: "2026-04-26T12:02:00.000Z",
+  });
+
+  const delta = await watches.getDelta("owner/repo", 7, new Date("2026-04-26T12:03:00.000Z"));
+
+  assert.equal(delta.completed, false);
+  assert.equal(delta.watch.status, "active");
+  assert.equal(delta.events.length, 2);
+  assert.equal(delta.watch.completionReason, undefined);
+});
+
 test("quiet period completes only when feedback is handled", async () => {
   const watches = await service();
   const start = new Date("2026-04-26T12:00:00.000Z");

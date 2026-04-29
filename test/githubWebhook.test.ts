@@ -179,7 +179,7 @@ test("toIngestEvent parses deleted issue comments", () => {
   assert.equal(event?.createdAt, "2026-04-26T12:04:00Z");
 });
 
-test("toIngestEvent ignores edited issue comments", () => {
+test("toIngestEvent parses edited issue comments", () => {
   const event = toIngestEvent("issue_comment", "delivery-8", {
     action: "edited",
     repository: { full_name: "Owner/Repo" },
@@ -193,10 +193,14 @@ test("toIngestEvent ignores edited issue comments", () => {
       body: "Edited existing feedback.",
       html_url: "https://github.com/Owner/Repo/pull/42#issuecomment-1",
       created_at: "2026-04-26T12:03:00Z",
+      updated_at: "2026-04-26T12:05:00Z",
     },
   });
 
-  assert.equal(event, undefined);
+  assert.equal(event?.kind, "issue_comment");
+  assert.equal(event?.action, "edited");
+  assert.equal(event?.body, "Edited existing feedback.");
+  assert.equal(event?.createdAt, "2026-04-26T12:05:00Z");
 });
 
 test("toIngestEvent ignores unsupported webhook events", () => {
